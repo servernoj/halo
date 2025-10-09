@@ -1,0 +1,12 @@
+idf_component_register(
+  SRCS 
+    "WiFi_DPP.cpp"
+  REQUIRES
+    esp_wifi 
+    wpa_supplicant 
+    nvs_flash 
+  PRIV_REQUIRES 
+    espressif__qrcode
+  INCLUDE_DIRS 
+    "."
+)

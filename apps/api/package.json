@@ -1,0 +1,13 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "start": "node --env-file .env dist/index.js",
+    "dev": "tsx watch --env-file .env src/index.ts"
+  },
+  "devDependencies": {
+    "rollup-plugin-node-externals": "^8.1.1"
+  }
+}

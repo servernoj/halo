@@ -1,0 +1,7 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.arguments": [
+    "--compile-commands-dir=build",
+    "--query-driver=**/riscv32-esp-elf/**/bin/riscv32-esp-elf-**"
+  ]
+}

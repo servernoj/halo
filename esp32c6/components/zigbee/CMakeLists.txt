@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS 
+        "Coordinator.cpp"
+        "Handlers.cpp"
+    INCLUDE_DIRS 
+        "."
+    REQUIRES
+        espressif__esp-zigbee-lib
+    PRIV_REQUIRES
+        motor
+)

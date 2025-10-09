@@ -1,0 +1,12 @@
+idf_component_register(
+  SRCS 
+    "app_main.cpp"
+  PRIV_REQUIRES 
+    ota
+    zigbee
+    motor
+    pg
+    i2c_slave
+    nvs_flash
+    wifi_dpp
+)

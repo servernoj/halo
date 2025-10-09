@@ -1,0 +1,25 @@
+AccessModifierOffset: 2
+AlignAfterOpenBracket: BlockIndent
+# AlignConsecutiveAssignments: true
+AlignOperands: Align
+AllowAllArgumentsOnNextLine: false
+BracedInitializerIndentWidth: 2
+BraceWrapping:
+  AfterFunction: false
+BreakBeforeBinaryOperators: All
+BreakBeforeTernaryOperators: true
+BreakBeforeBraces: Custom
+ColumnLimit: 110
+IndentAccessModifiers: true
+IndentCaseLabels: true
+IndentExternBlock: Indent
+IndentWidth: 2
+InsertBraces: true
+NamespaceIndentation: All
+SpaceBeforeCpp11BracedList: true
+UseTab: Never
+FixNamespaceComments: false
+AlignTrailingComments:
+  Kind: Never
+
+ContinuationIndentWidth: 2
