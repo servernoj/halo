@@ -2,7 +2,6 @@ import globals from 'globals'
 import pluginJs from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import standard from './eslint-standard.js'
-import react from './eslint-react.js'
 
 export default [
   pluginJs.configs.recommended,
@@ -19,7 +18,6 @@ export default [
     }
   },
   ...tseslint.configs.recommended,
-  ...react,
   ...standard,
   {
     rules: {

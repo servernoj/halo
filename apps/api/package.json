@@ -8,6 +8,10 @@
     "dev": "tsx watch --env-file .env src/index.ts"
   },
   "devDependencies": {
+    "@types/i2c-bus": "^5.1.2",
     "rollup-plugin-node-externals": "^8.1.1"
+  },
+  "dependencies": {
+    "i2c-bus": "^5.2.3"
   }
 }
