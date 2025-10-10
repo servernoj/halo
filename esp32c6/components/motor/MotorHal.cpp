@@ -34,7 +34,7 @@ namespace motor {
       .mode = GPIO_MODE_INPUT,
       .pull_up_en = GPIO_PULLUP_ENABLE,
       .pull_down_en = GPIO_PULLDOWN_DISABLE,
-      .intr_type = GPIO_INTR_POSEDGE
+      .intr_type = GPIO_INTR_NEGEDGE
     };
     ESP_RETURN_ON_ERROR(
       gpio_config(&io), //

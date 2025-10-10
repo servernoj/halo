@@ -1,5 +1,3 @@
-const init = async () => {
-  console.log('Hello Halo!')
-}
+import handler from './motorProfile'
 
-init()
+handler(...process.argv.slice(2))

@@ -119,26 +119,22 @@ namespace i2c_slave {
                     break;
                   }
                   case 2: {
-                    // boo
-                    ESP_LOGI(
-                      I2C::TAG, //
-                      "move up result %d", //
-                      Motor::instance().submit(
-                        Move {.steps = +500, .end_action = EndAction::HOLD, .move_type = MoveType::FIXED}
-                      )
-                    );
-                    ESP_LOGI(
-                      I2C::TAG,
-                      "move down result %d", //
-                      Motor::instance().submit(
-                        Move {
-                          .steps = -500,
-                          .delay_ms = 100,
-                          .end_action = EndAction::COAST,
-                          .move_type = MoveType::FIXED
-                        }
-                      )
-                    );
+                    // define profile
+                    if ((evt.data->length - 2) % 4 == 0) {
+                      int N = (evt.data->length - 2) / 4;
+                      uint16_t *offset = (uint16_t *)(evt.data->buffer + 2);
+                      for (int i = 0; i < N; i++) {
+                        int32_t steps = *(int16_t *)(offset + i * 2);
+                        uint32_t delay = *(offset + i * 2 + 1);
+                        Motor::instance().submit(
+                          Move {
+                            .steps = steps,
+                            .delay_ms = delay,
+                            .move_type = MoveType::FIXED,
+                          }
+                        );
+                      }
+                    }
                     break;
                   }
                 }
