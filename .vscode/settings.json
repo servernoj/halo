@@ -3,5 +3,6 @@
   "clangd.arguments": [
     "--compile-commands-dir=build",
     "--query-driver=**/riscv32-esp-elf/**/bin/riscv32-esp-elf-**"
-  ]
+  ],
+  "cmake.sourceDirectory": "/Users/servernoj/Projects/2025/halo/esp32c6"
 }

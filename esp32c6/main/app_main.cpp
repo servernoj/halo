@@ -43,10 +43,10 @@ extern "C" void app_main(void) {
   if (ota::OTA::instance().is_ota_mode_pending()) {
     ESP_LOGI("MAIN", "=== OTA MODE DETECTED ===");
     ESP_LOGI("MAIN", "Skipping normal app initialization, performing OTA...");
-    
+
     // Perform OTA update (will reboot on success or failure)
     ota::OTA::instance().perform_ota_mode_update();
-    
+
     // Should never reach here (perform_ota_mode_update reboots)
     ESP_LOGE("MAIN", "OTA mode update returned unexpectedly");
     return;
