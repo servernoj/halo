@@ -3,15 +3,24 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "start": "node --env-file .env dist/index.js",
-    "dev": "tsx watch --env-file .env src/index.ts"
+    "start": "node --env-file .env src/index.js",
+    "dev": "nodemon --env-file .env src/index.ts",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@types/express": "^5.0.3",
     "@types/i2c-bus": "^5.1.2",
-    "rollup-plugin-node-externals": "^8.1.1"
+    "eslint": "^9.37.0",
+    "eslint-import-resolver-alias": "^1.1.2",
+    "eslint-plugin-import": "^2.32.0",
+    "nodemon": "^3.1.10"
   },
   "dependencies": {
+    "express": "^5.1.0",
     "i2c-bus": "^5.2.3"
+  },
+  "aliases": {
+    "@": "./src"
   }
 }
