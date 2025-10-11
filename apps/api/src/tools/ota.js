@@ -28,6 +28,7 @@ export const getUrl = async () => {
   await bus.i2cWrite(deviceAddr, cmdBuffer.length, cmdBuffer)
   await bus.i2cRead(deviceAddr, dataBuffer.length, dataBuffer)
   await bus.close()
-  return dataBuffer.toString()
+  const str = dataBuffer.toString('utf8')
+  return str.slice(0, str.indexOf('\0'))
 }
 
