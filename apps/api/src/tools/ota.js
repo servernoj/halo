@@ -23,7 +23,7 @@ export const setUrl = async (url = '') => {
 
 export const getUrl = async () => {
   const bus = await i2c.openPromisified(1)
-  const buf = Buffer.alloc(64)
+  const buf = Buffer.alloc(32)
   await bus.readI2cBlock(deviceAddr, 0x01, buf.length, buf)
   await bus.close()
   return buf.toString()
