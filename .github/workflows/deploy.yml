@@ -26,7 +26,7 @@ jobs:
 
       - name: Init env file
         run: |
-          touch .env
+          touch apps/api/.env
 
       - name: Start the app
         run: |
