@@ -164,6 +164,7 @@ namespace i2c_slave {
           }
         } else if (evt.type == I2C_SLAVE_EVT_TX) {
           uint8_t tx[BUF_SIZE];
+          memset(tx, 0, BUF_SIZE);
           tx[0] = I2C::DEVICE_ID;
           size_t tx_len = 1;
           if (isAddressSet) {
