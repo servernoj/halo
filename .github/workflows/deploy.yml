@@ -24,6 +24,10 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
 
+      - name: Init env file
+        run: |
+          touch .env
+
       - name: Start the app
         run: |
           pnpm api start
