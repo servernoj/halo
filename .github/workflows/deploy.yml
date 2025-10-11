@@ -22,16 +22,12 @@ jobs:
       - name: Install dependencies
         run: |
           corepack enable
-          pnpm install --frozen-lockfile
+          pnpm install --prod --frozen-lockfile
 
       - name: Init env file
         run: |
           touch apps/api/.env
 
-      - name: Start the app
+      - name: Copy to predefined location
         run: |
-          pnpm api start
-      # - name: Restart app with PM2
-      #   run: |
-      #     pm2 startOrReload ecosystem.config.cjs
-      #     pm2 save
+          rsync -a --delete ./ $HOME/halo/
