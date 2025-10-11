@@ -9,6 +9,7 @@ jobs:
     runs-on:
       - self-hosted
       - halo
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,9 +26,10 @@ jobs:
           pnpm install --prod --frozen-lockfile
 
       - name: Init env file
-        run: |
-          touch apps/api/.env
+        run: touch apps/api/.env
 
       - name: Copy to predefined location
-        run: |
-          rsync -a --delete ./ $HOME/halo/
+        run: rsync -a --delete ./ $HOME/halo/
+
+      - name: Restart the service
+        run: sudo systemctl restart halo.service
