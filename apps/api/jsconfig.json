@@ -16,5 +16,9 @@
         },
         "resolveJsonModule": true,
         "skipLibCheck": true
-    }
+    },
+    "include": [
+        "src/**/*.js",
+        "src/@types/**/*.d.ts"
+    ]
 }

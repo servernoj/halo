@@ -1,13 +1,14 @@
-import express from 'express'
+import { register } from "node:module";
 import { Worker } from 'node:worker_threads'
-import { workerFileName } from './worker.js'
 
-new Worker(workerFileName, {
-  name: 'PIR',
-})
+const init = async () => {
+  register("esm-module-alias/loader", import.meta.url);
+  const { workerFileName } = await import('./worker.js')
+  new Worker(workerFileName, {
+    name: 'PIR',
+  })
+  await import('./server.js')
 
-const app = express()
+}
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }))
-const PORT = 3000
-app.listen(PORT, () => console.log(`Server listening on http://localhost:${PORT}`))
+init()

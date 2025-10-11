@@ -1,16 +1,16 @@
-import i2c from 'i2c-bus'
+import i2c from '@/i2c-stub.js'
 
-export default async (...args: any) => {
+const deviceAddr = 0x42
+const register = 0x10
+const command = 0x02
+
+/**
+ * @param {Array<{steps: number, delay: number}>} profile A sequence of motor steps to run in FIXED + COAST mode
+ */
+export default async (profile = []) => {
   const bus = await i2c.openPromisified(1)
-  const deviceAddr = 0x42
-  const register = 0x10
-  const command = 0x02
-
-  const profile = [
-    { steps: 512, delay: 0 }
-  ]
   const buf = Buffer.alloc(2)
-  const payload = profile.reduce(
+  const payload = profile.slice(0, 16).reduce(
     (acc, move) => {
       buf.writeInt16LE(move.steps)
       acc.push(...buf)
@@ -18,12 +18,9 @@ export default async (...args: any) => {
       acc.push(...buf)
       return acc
     },
-    [] as Array<number>
+    []
   )
   const data = [register, command, ...payload]
-
-  // Send data
   await bus.i2cWrite(deviceAddr, data.length, Buffer.from(data))
   await bus.close()
 }
-

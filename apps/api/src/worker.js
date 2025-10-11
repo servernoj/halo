@@ -5,5 +5,6 @@ if (!isMainThread) {
   let cnt = 0
   setInterval(() => {
     console.log(cnt++)
-  }, 1000)
+  }, 10000)
+  console.log('Worker started')
 }
