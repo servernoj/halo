@@ -19,13 +19,13 @@ router.post(
   }),
   async (req, res) => {
     const { profile } = res.locals.parsed.body
-    await tools.motorProfile(profile)
+    await tools.motor.runProfile(profile)
     res.sendStatus(200)
   }
 )
 
 router.post(
-  '/set-ota-url',
+  '/ota-url',
   validator({
     body: z.object({
       url: z.string()
@@ -33,8 +33,16 @@ router.post(
   }),
   async (req, res) => {
     const { url } = res.locals.parsed.body
-    await tools.otaURL(url)
+    await tools.ota.setUrl(url)
     res.sendStatus(200)
+  }
+)
+
+router.get(
+  '/ota-url',
+  async (req, res) => {
+    const url = await tools.ota.getUrl()
+    res.json({ url })
   }
 )
 

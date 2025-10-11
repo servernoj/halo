@@ -1,7 +1,7 @@
-import motorProfile from "./motorProfile.js"
-import otaURL from "./otaURL.js"
+import * as motor from "./motor.js"
+import * as ota from "./ota.js"
 
 export {
-  motorProfile,
-  otaURL
+  motor,
+  ota
 }
