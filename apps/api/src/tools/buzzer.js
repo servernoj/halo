@@ -69,20 +69,20 @@ export const notes = {
  */
 export const runProfile = async (profile = []) => {
   const bus = await i2c.openPromisified(1)
-  const buf = Buffer.alloc(4)
-  const payload = profile.slice(0, 16).reduce(
+  const buf = Buffer.alloc(8)
+  const payload = profile.reduce(
     (acc, { note, length }) => {
       const freq = notes?.[note] ?? 0
       buf.writeUInt32LE(freq)
-      acc.push(...buf)
-      buf.writeUInt32LE(length)
-      acc.push(...buf)
+      buf.writeUInt32LE(length, 4)
+      acc.push(buf)
       return acc
     },
     []
   )
-  const data = Buffer.from(payload)
-  console.log(data)
-  await bus.i2cWrite(deviceAddr, data.length, data)
+  for (const data of payload) {
+    console.log(data)
+    await bus.i2cWrite(deviceAddr, data.length, data)
+  }
   await bus.close()
 }
