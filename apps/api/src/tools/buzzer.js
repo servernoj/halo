@@ -75,13 +75,12 @@ export const runProfile = async (profile = []) => {
       const freq = notes?.[note] ?? 0
       buf.writeUInt32LE(freq)
       buf.writeUInt32LE(length, 4)
-      acc.push(buf)
+      acc.push(Buffer.from(buf))
       return acc
     },
     []
   )
   for (const data of payload) {
-    console.log(data)
     await bus.i2cWrite(deviceAddr, data.length, data)
   }
   await bus.close()
