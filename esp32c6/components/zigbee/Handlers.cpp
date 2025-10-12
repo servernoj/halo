@@ -238,12 +238,11 @@ namespace zigbee {
               && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_BOOL) {
             light_state
               = message->attribute.data.value ? *(bool *)message->attribute.data.value : light_state;
-            ESP_LOGI(TAG, "Light sets to %s", light_state ? "On" : "Off");
             motor::Motor::instance().submit(
               motor::Move {
-                .steps = 500,
+                .steps = +1,
                 .end_action = motor::EndAction::COAST,
-                .move_type = motor::MoveType::FIXED
+                .move_type = motor::MoveType::FREE
               }
             );
           }
