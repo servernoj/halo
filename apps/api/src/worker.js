@@ -1,5 +1,6 @@
 import { isMainThread, parentPort } from 'node:worker_threads'
 import { register } from 'node:module'
+import i2c from './i2c-stub.js'
 
 const STATUS_BITS = {
   RAW: 0x01,
@@ -15,7 +16,7 @@ const STATUS_REG = 0x03
 
 const init = async () => {
   register('esm-module-alias/loader', import.meta.url)
-  const i2c = await import('@/i2c-stub.js')
+
   const { sleep, buzzer } = await import('@/tools/index.js')
   const bus = await i2c.default.openPromisified(1)
 
