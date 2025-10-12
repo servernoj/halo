@@ -20,7 +20,7 @@ export default defineConfig([
         alias: {
           extensions: ['.js'],
           map: [
-            ['@', './']
+            ['@', './src']
           ],
         },
         node: {
