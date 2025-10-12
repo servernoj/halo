@@ -109,10 +109,14 @@ namespace i2c_slave {
                     break;
                   }
                   case 1: {
-                    // return
+                    // free run
+                    int8_t dir = -1;
+                    if (evt.data->length > 2) {
+                      dir = *(int8_t *)(evt.data->buffer + 2);
+                    }
                     Motor::instance().submit(
                       Move {
-                        .steps = -1,
+                        .steps = dir,
                         .move_type = MoveType::FREE,
                       }
                     );
