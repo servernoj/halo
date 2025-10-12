@@ -15,7 +15,7 @@ router.post(
       profile: z.array(
         z.object({
           note: z.enum(supportedNotes),
-          delay: z.number().nonnegative()
+          length: z.number().nonnegative()
         })
       )
     })
