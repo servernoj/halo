@@ -1,4 +1,5 @@
 import i2c from '@/i2c-stub.js'
+import { sleep } from './index.js'
 
 const deviceAddr = 0x1e
 
@@ -75,13 +76,14 @@ export const runProfile = async (profile = []) => {
       const freq = notes?.[note] ?? 0
       buf.writeUInt32LE(freq)
       buf.writeUInt32LE(length, 4)
-      acc.push(Buffer.from(buf))
+      acc.push([length, Buffer.from(buf)])
       return acc
     },
     []
   )
-  for (const data of payload) {
+  for (const [delay, data] of payload) {
     await bus.i2cWrite(deviceAddr, data.length, data)
+    await sleep(delay - 5)
   }
   await bus.close()
 }

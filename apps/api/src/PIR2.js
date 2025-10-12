@@ -20,17 +20,6 @@ const CONFIRM_MS = 3000        // “occupied” only if detect is ≥ 3s old
 const VACATE_HOLDOFF_MS = 2000 // optional grace after a newer remove
 
 const bus = await i2c.openPromisified(BUS)
-const sleep = (ms) => (new Promise(
-  resolve => {
-    const timer = setTimeout(
-      () => {
-        clearTimeout(timer)
-        resolve(null)
-      },
-      ms
-    )
-  }
-))
 
 async function readU32LE(reg) {
   const b = Buffer.alloc(4)
