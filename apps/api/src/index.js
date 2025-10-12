@@ -4,11 +4,11 @@ import { Worker } from 'node:worker_threads'
 const init = async () => {
   register("esm-module-alias/loader", import.meta.url);
   const { workerFileName } = await import('./worker.js')
-  new Worker(workerFileName, {
+  const worker = new Worker(workerFileName, {
     name: 'PIR',
   })
-  await import('./server.js')
-
+  const { init: initServer } = await import('./server.js')
+  initServer(worker)
 }
 
 init()
