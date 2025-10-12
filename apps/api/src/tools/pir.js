@@ -1,4 +1,4 @@
-import i2c from 'i2c-bus'
+import i2c from '@/i2c-stub.js'
 
 const BUS = 1
 const ADDR = 0x12
@@ -10,14 +10,20 @@ const REG = {
   REM_Q_FRONT: 0x11,
   REM_Q_BACK: 0x15
 }
+const STATUS_BITS = {
+  RAW: 0x01,
+  AVAILABLE: 0x02,
+  REM: 0x04,
+  DET: 0x08
+}
 const BIT = {
   Q_POP: 0x01,
   Q_EMPTY: 0x02,
   Q_FULL: 0x04
 }
 const POLL_MS = 75
-const CONFIRM_MS = 3000        // “occupied” only if detect is ≥ 3s old
-const VACATE_HOLDOFF_MS = 2000 // optional grace after a newer remove
+const CONFIRM_MS = 3000
+const VACATE_HOLDOFF_MS = 2000
 
 const bus = await i2c.openPromisified(BUS)
 
@@ -109,13 +115,3 @@ setInterval(async () => {
     console.error('queue/front loop error:', e)
   }
 }, POLL_MS)
-
-// Optional: key controls — [d] condense DET to newest, [r] condense REM to newest, [q] quit
-process.stdin.setRawMode?.(true); process.stdin.resume()
-console.log('Controls: [d]=trim DET to newest, [r]=trim REM to newest, [q]/Ctrl-C=quit')
-process.stdin.on('data', async (b) => {
-  const ch = String(b)
-  if (ch === 'd') await condenseToLatest(REG.DET_Q_STATUS, REG.DET_Q_FRONT, REG.DET_Q_BACK)
-  else if (ch === 'r') await condenseToLatest(REG.REM_Q_STATUS, REG.REM_Q_FRONT, REG.REM_Q_BACK)
-  else if (ch === 'q' || ch === '\u0003') { await bus.close(); process.exit(0) }
-})

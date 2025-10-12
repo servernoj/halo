@@ -5,6 +5,7 @@ import z from 'zod'
 import { buzzer } from '@/tools/index.js'
 
 const supportedNotes = Object.keys(buzzer.notes)
+const supportedMelodies = Object.keys(buzzer.melodies)
 
 const router = express.Router()
 
@@ -23,6 +24,20 @@ router.post(
   async (req, res) => {
     const { profile } = res.locals.parsed.body
     await tools.buzzer.runProfile(profile)
+    res.sendStatus(200)
+  }
+)
+
+router.post(
+  '/melody/:id',
+  validator({
+    params: z.object({
+      id: z.enum(supportedMelodies)
+    })
+  }),
+  async (req, res) => {
+    const { id } = res.locals.parsed.params
+    await tools.buzzer.runProfile(buzzer.melodies[id])
     res.sendStatus(200)
   }
 )

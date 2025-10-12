@@ -1,8 +1,6 @@
 import i2c from '@/i2c-stub.js'
 
 const deviceAddr = 0x42
-const register = 0x11
-
 
 /**
  * @param {string} url URL for the OTA update firmware file

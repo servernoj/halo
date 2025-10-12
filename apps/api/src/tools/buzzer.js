@@ -64,6 +64,22 @@ export const notes = {
   DS8: 4978,
   REST: 0
 }
+export const melodies = {
+  mario: [
+    { note: 'E5', length: 125 },
+    { note: 'REST', length: 25 },
+    { note: 'E5', length: 125 },
+    { note: 'REST', length: 125 },
+    { note: 'E5', length: 125 },
+    { note: 'REST', length: 125 },
+    { note: 'C5', length: 125 },
+    { note: 'E5', length: 125 },
+    { note: 'REST', length: 125 },
+    { note: 'G5', length: 125 },
+    { note: 'REST', length: 375 },
+    { note: 'G4', length: 250 }
+  ]
+}
 
 /**
  * @param {Array<{note: string, length: number}>} profile A sequence of notes + lengths (ms) to sound
