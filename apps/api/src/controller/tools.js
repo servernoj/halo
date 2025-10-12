@@ -6,7 +6,7 @@ import z from 'zod'
 const router = express.Router()
 
 router.post(
-  '/motor-profile',
+  '/motor/profile',
   validator({
     body: z.object({
       profile: z.array(
@@ -25,7 +25,15 @@ router.post(
 )
 
 router.post(
-  '/ota-url',
+  '/ota/update',
+  async (req, res) => {
+    await tools.ota.triggerUpdate()
+    res.sendStatus(200)
+  }
+)
+
+router.post(
+  '/ota/url',
   validator({
     body: z.object({
       url: z.string()
@@ -39,7 +47,7 @@ router.post(
 )
 
 router.get(
-  '/ota-url',
+  '/ota/url',
   async (req, res) => {
     const url = await tools.ota.getUrl()
     res.json({ url })

@@ -21,6 +21,13 @@ export const setUrl = async (url = '') => {
   await bus.close()
 }
 
+export const triggerUpdate = async () => {
+  const bus = await i2c.openPromisified(1)
+  const data = [0x11, 0x01]
+  await bus.i2cWrite(deviceAddr, data.length, Buffer.from(data))
+  await bus.close()
+}
+
 export const getUrl = async () => {
   const bus = await i2c.openPromisified(1)
   const cmdBuffer = Buffer.from([0x01])
