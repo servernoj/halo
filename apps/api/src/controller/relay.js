@@ -6,7 +6,7 @@ const router = express.Router()
 router.post(
   '/',
   async (req, res) => {
-    await tools.relay.on_off()
+    tools.relay.on_off()
     res.sendStatus(200)
   }
 )
