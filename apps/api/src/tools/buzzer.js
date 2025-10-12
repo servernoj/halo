@@ -93,26 +93,15 @@ export const melodies = {
     { note: 'REST', length: 50 },
     { note: 'B3', length: 500 },
     { note: 'REST', length: 250 },
-    { note: 'E4', length: 500 },
-    { note: 'REST', length: 50 },
-    { note: 'E4', length: 125 },
-    { note: 'REST', length: 50 },
-    { note: 'G4', length: 187 },
-    { note: 'REST', length: 50 },
-    { note: 'E4', length: 187 },
-    { note: 'REST', length: 50 },
-    { note: 'D4', length: 125 },
-    { note: 'REST', length: 50 },
-    { note: 'C4', length: 500 },
-    { note: 'REST', length: 50 },
-    { note: 'B3', length: 500 }
+    { note: 'E4', length: 500 }
   ]
 }
 
 /**
  * @param {Array<{note: string, length: number}>} profile A sequence of notes + lengths (ms) to sound
+ * @param {boolean} [blocking] Flag allowing to block the flow while current note is playing
  */
-export const runProfile = async (profile = []) => {
+export const runProfile = async (profile = [], blocking = true) => {
   const bus = await i2c.openPromisified(1)
   const buf = Buffer.alloc(8)
   const payload = profile.reduce(
@@ -127,7 +116,9 @@ export const runProfile = async (profile = []) => {
   )
   for (const [delay, data] of payload) {
     await bus.i2cWrite(deviceAddr, data.length, data)
-    await sleep(delay - 5)
+    if (blocking) {
+      await sleep(delay - 5)
+    }
   }
   await bus.close()
 }
