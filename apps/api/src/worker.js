@@ -11,7 +11,7 @@ const start = (interval) => {
 }
 
 if (!isMainThread) {
-  let timer = start(1000)
+  let timer = start(10000)
   parentPort.on('message', (message) => {
     if (timer) {
       clearInterval(timer)
@@ -19,10 +19,10 @@ if (!isMainThread) {
         console.log(`Polling interval set to ${message} ms`)
         timer = start(message)
       } else {
-        console.log(`Polling stopped`)
+        console.log('Polling stopped')
       }
     }
-  });
+  })
 
   console.log('Worker started')
 }

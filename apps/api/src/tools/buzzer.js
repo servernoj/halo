@@ -1,6 +1,6 @@
 import i2c from '@/i2c-stub.js'
 
-const deviceAddr = 0x3C
+const deviceAddr = 0x1e
 
 export const notes = {
   FS3: 185,
@@ -82,6 +82,7 @@ export const runProfile = async (profile = []) => {
     []
   )
   const data = Buffer.from(payload)
+  console.log(data)
   await bus.i2cWrite(deviceAddr, data.length, data)
   await bus.close()
 }
