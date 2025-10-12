@@ -78,6 +78,34 @@ export const melodies = {
     { note: 'G5', length: 125 },
     { note: 'REST', length: 375 },
     { note: 'G4', length: 250 }
+  ],
+  seven: [
+    { note: 'E4', length: 500 },
+    { note: 'REST', length: 125 },
+    { note: 'E4', length: 125 },
+    { note: 'REST', length: 50 },
+    { note: 'G4', length: 187 },
+    { note: 'REST', length: 50 },
+    { note: 'E4', length: 187 },
+    { note: 'REST', length: 50 },
+    { note: 'D4', length: 125 },
+    { note: 'C4', length: 500 },
+    { note: 'REST', length: 50 },
+    { note: 'B3', length: 500 },
+    { note: 'REST', length: 250 },
+    { note: 'E4', length: 500 },
+    { note: 'REST', length: 50 },
+    { note: 'E4', length: 125 },
+    { note: 'REST', length: 50 },
+    { note: 'G4', length: 187 },
+    { note: 'REST', length: 50 },
+    { note: 'E4', length: 187 },
+    { note: 'REST', length: 50 },
+    { note: 'D4', length: 125 },
+    { note: 'REST', length: 50 },
+    { note: 'C4', length: 500 },
+    { note: 'REST', length: 50 },
+    { note: 'B3', length: 500 }
   ]
 }
 
