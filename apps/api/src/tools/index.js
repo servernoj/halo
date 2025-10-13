@@ -16,6 +16,8 @@ const sleep = (ms) => new Promise(
   }
 )
 
+const bus = await i2c.openPromisified(1)
+
 const messageProcessor = async ({ target, method, args }) => {
   switch (target) {
     case 'buzzer': {
@@ -26,7 +28,6 @@ const messageProcessor = async ({ target, method, args }) => {
       break
     }
     case 'i2c': {
-      const bus = await i2c.openPromisified(1)
       const handler = bus?.[method]
       if (typeof handler === 'function') {
         const result = await handler(...args)
