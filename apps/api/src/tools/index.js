@@ -30,7 +30,7 @@ const messageProcessor = async ({ target, method, args }) => {
     case 'i2c': {
       const handler = bus?.[method]
       if (typeof handler === 'function') {
-        const result = await handler(...args)
+        const result = await handler.call(bus, ...args)
         return result
       }
       break
