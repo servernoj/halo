@@ -23,6 +23,7 @@ if (!isMainThread) {
     (resolve, reject) => {
       const id = randomUUID()
       pending.set(id, { resolve, reject })
+      console.log('>>>', { id, target, method, args })
       parentPort.postMessage({ id, target, method, args })
     }
   )
@@ -43,6 +44,7 @@ if (!isMainThread) {
 
   parentPort.on('message', (msg) => {
     const { id, ok, result, error } = msg
+    console.log('<<<', { id, ok, result, error })
     if (id) {
       const entry = pending.get(id)
       if (!entry) {
