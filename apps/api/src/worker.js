@@ -68,7 +68,6 @@ if (!isMainThread) {
   })
 
   const taskLoop = (interval) => {
-    let cnt = 0
     const timer = setInterval(
       async () => {
         const status = await rpcRequest({
@@ -91,14 +90,6 @@ if (!isMainThread) {
             args: [DEVICE_ADDR, STATUS_REG, status & (~MASKS.CLEAR)]
           })
         }
-        // if (cnt === 5) {
-        //   onActive().then(
-        //     () => {
-        //       console.log('<<<')
-        //     }
-        //   )
-        // }
-        console.log(cnt++)
       },
       interval
     )
