@@ -14,7 +14,7 @@ router.post(
   async (req, res) => {
     const { interval } = res.locals.parsed.body
     const { worker } = req.app.locals
-    worker.postMessage(interval)
+    worker.postMessage({ result: interval })
     res.sendStatus(200)
   }
 )

@@ -91,9 +91,7 @@ export const melodies = {
     { note: 'D4', length: 125 },
     { note: 'C4', length: 500 },
     { note: 'REST', length: 50 },
-    { note: 'B3', length: 500 },
-    { note: 'REST', length: 250 },
-    { note: 'E4', length: 500 }
+    { note: 'B3', length: 500 }
   ]
 }
 
