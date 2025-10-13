@@ -14,6 +14,10 @@ const init = async () => {
       const result = await messageProcessor({ target, method, args })
       worker.postMessage({ id, ok: true, result })
     } catch (err) {
+      console.error({
+        req: { id, target, method, args },
+        error: err.message
+      })
       worker.postMessage({ id, ok: false, error: err.message })
     }
   })
