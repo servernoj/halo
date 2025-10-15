@@ -15,7 +15,7 @@ namespace motor {
     }
     MotorCfg motor_cfg {
       .en_active_level = 1,
-      .step_mode = StepMode::FixedHalf,
+      .step_mode = StepMode::FixedEighth,
       .dir_cw_level = 1,
       .pins = {
         .stby = GPIO_NUM_5,

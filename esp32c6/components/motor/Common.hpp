@@ -37,7 +37,7 @@ namespace motor {
   struct Move {
     public:
       int32_t steps {0}; // +CW, -CCW
-      uint32_t period_us {1000}; // >0
+      uint32_t period_us {500}; // >0
       uint32_t high_us {50}; // >0 and < period_us
       uint32_t delay_ms {0}; // pre-exec delay after dequeue
       EndAction end_action {EndAction::COAST};
