@@ -9,6 +9,16 @@ import mime from 'mime'
 const router = express.Router()
 
 router.get(
+  '/version',
+  async (req, res) => {
+    const version = await tools.firmware.getVersion()
+    const buildDate = await tools.firmware.getBuildDate()
+    const buildTime = await tools.firmware.getBuildTime()
+    res.json({ version, buildDate, buildTime })
+  }
+)
+
+router.get(
   '/:file',
   validator({
     params: z.object({
@@ -19,19 +29,11 @@ router.get(
     const { file } = res.locals.parsed.params
     const path = fileURLToPath(new URL(`../../../../esp32c6/build/${file}`, import.meta.url))
     const data = await fs.readFile(path)
-    res.setHeader('Content-Type', mime.getType(path) || 'application/octet-stream');
-    res.send(data);
+    res.setHeader('Content-Type', mime.getType(path) || 'application/octet-stream')
+    res.send(data)
   }
 )
 
-router.get(
-  '/version',
-  async (req, res) => {
-    const version = await tools.firmware.getVersion()
-    const buildDate = await tools.firmware.getBuildDate()
-    const buildTime = await tools.firmware.getBuildTime()
-    res.json({ version, buildDate, buildTime })
-  }
-)
+
 
 export default router

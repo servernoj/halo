@@ -21,9 +21,8 @@ export const setUrl = async (url = '') => {
 }
 
 export const getUrl = async () => {
-  const buffer = await readRegister(0x10, 64)
-  const str = buffer.toString('utf8')
-  return str.slice(0, str.indexOf('\0'))
+  const buffer = await readRegister(0x10)
+  return buffer.toString('utf8').split('\0')[0]
 }
 
 export const triggerUpdate = async () => {
@@ -31,14 +30,11 @@ export const triggerUpdate = async () => {
 }
 
 export const getStatus = async () => {
-  const state = (await readRegister(0x12, 1))[0]
-  const progress = (await readRegister(0x13, 1))[0]
-  const errorCodeBuf = await readRegister(0x14, 4)
-  const errorCode = errorCodeBuf.readInt32LE(0)
-  const bytesBuf = await readRegister(0x15, 4)
-  const bytesDownloaded = bytesBuf.readUInt32LE(0)
-  const errorFuncBuf = await readRegister(0x16, 32)
-  const errorFunction = errorFuncBuf.toString('utf8').split('\0')[0]
+  const state = (await readRegister(0x12)).readUInt8()
+  const progress = (await readRegister(0x13)).readUInt8()
+  const errorCode = (await readRegister(0x14)).readInt32LE()
+  const bytesDownloaded = (await readRegister(0x15)).readUInt32LE()
+  const errorFunction = (await readRegister(0x16)).toString('utf8').split('\0')[0]
 
   const STATE_NAMES = {
     0: 'UNKNOWN',
