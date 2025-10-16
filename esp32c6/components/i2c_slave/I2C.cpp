@@ -266,7 +266,7 @@ namespace i2c_slave {
               }
               case I2C::REG_FIRMWARE_VERSION: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->version, BUF_SIZE - 2); // Reserve space for length byte and null
+                size_t len = strnlen(app_desc->version, 32); // version field is char[32]
                 tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
                 memcpy(tx + 1, app_desc->version, len);
                 tx[1 + len] = '\0';
@@ -276,7 +276,7 @@ namespace i2c_slave {
               }
               case I2C::REG_FIRMWARE_BUILD_DATE: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->date, BUF_SIZE - 2);
+                size_t len = strnlen(app_desc->date, 16); // date field is char[16]
                 tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
                 memcpy(tx + 1, app_desc->date, len);
                 tx[1 + len] = '\0';
@@ -285,7 +285,7 @@ namespace i2c_slave {
               }
               case I2C::REG_FIRMWARE_BUILD_TIME: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->time, BUF_SIZE - 2);
+                size_t len = strnlen(app_desc->time, 16); // time field is char[16]
                 tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
                 memcpy(tx + 1, app_desc->time, len);
                 tx[1 + len] = '\0';
