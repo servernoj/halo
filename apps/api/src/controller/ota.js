@@ -35,5 +35,20 @@ router.get(
   }
 )
 
+router.get(
+  '/status',
+  async (req, res) => {
+    const status = await tools.ota.getStatus()
+    res.json(status)
+  }
+)
+
+router.post(
+  '/reset',
+  async (req, res) => {
+    await tools.ota.resetStatus()
+    res.sendStatus(200)
+  }
+)
 
 export default router

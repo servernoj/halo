@@ -102,14 +102,6 @@ namespace wifi {
       xEventGroupSetBits(event_group_, DPP_CONNECTED_BIT);
     }
   }
-  esp_err_t WiFi_DPP::reset_provisioning() {
-    esp_err_t ret = esp_wifi_restore();
-    if (ret == ESP_OK) {
-      provisioned_ = false;
-      ESP_LOGW(TAG, "WiFi credentials have been cleared");
-    }
-    return ret;
-  }
   esp_err_t WiFi_DPP::deinit() {
     if (!initialized_) {
       ESP_LOGW(TAG, "WiFi_DPP not initialized");
@@ -120,6 +112,12 @@ namespace wifi {
     esp_err_t ret = esp_wifi_stop();
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "Failed to stop WiFi: %s", esp_err_to_name(ret));
+    }
+
+    // Set WiFi mode to NULL (reverse of init setting WIFI_MODE_STA)
+    ret = esp_wifi_set_mode(WIFI_MODE_NULL);
+    if (ret != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to set WiFi mode to NULL: %s", esp_err_to_name(ret));
     }
 
     // Deinitialize WiFi
@@ -146,105 +144,6 @@ namespace wifi {
     return ESP_OK;
   }
 
-  esp_err_t WiFi_DPP::scan_and_connect() {
-    ESP_LOGI(TAG, "Scanning for best WiFi channel...");
-
-    // Scan for available APs
-    wifi_scan_config_t scan_config = {};
-    scan_config.ssid = NULL; // Don't filter by SSID - scan all APs
-    scan_config.bssid = NULL; // Don't filter by BSSID
-    scan_config.channel = 0; // Scan all channels
-    scan_config.show_hidden = true;
-    scan_config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-    scan_config.scan_time.active.min = 200; // Longer scan time
-    scan_config.scan_time.active.max = 500; // Longer scan time
-
-    esp_err_t ret = esp_wifi_scan_start(&scan_config, true);
-    if (ret != ESP_OK) {
-      ESP_LOGE(TAG, "WiFi scan failed: %s", esp_err_to_name(ret));
-      return ret;
-    }
-
-    // Get scan results
-    uint16_t ap_count = 0;
-    esp_wifi_scan_get_ap_num(&ap_count);
-    ESP_LOGI(TAG, "Found %d APs in scan", ap_count);
-
-    if (ap_count == 0) {
-      ESP_LOGW(TAG, "No APs found, trying direct connection");
-      return esp_wifi_connect();
-    }
-
-    wifi_ap_record_t *ap_records = (wifi_ap_record_t *)malloc(ap_count * sizeof(wifi_ap_record_t));
-    if (ap_records == NULL) {
-      ESP_LOGE(TAG, "Failed to allocate memory for scan results");
-      return ESP_ERR_NO_MEM;
-    }
-
-    ret = esp_wifi_scan_get_ap_records(&ap_count, ap_records);
-    if (ret != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to get scan results: %s", esp_err_to_name(ret));
-      free(ap_records);
-      return ret;
-    }
-
-    // Debug: Log all found APs
-    ESP_LOGI(TAG, "Scan results:");
-    for (int i = 0; i < ap_count; i++) {
-      ESP_LOGI(
-        TAG, "  %d: SSID='%s', Channel=%d, RSSI=%d dBm", i, ap_records[i].ssid, ap_records[i].primary,
-        ap_records[i].rssi
-      );
-    }
-
-    // Find the best AP for YOUR SSID (strongest signal on least crowded channel)
-    int best_ap = -1;
-    int best_score = -1000;
-    int your_ssid_count = 0;
-
-    ESP_LOGI(TAG, "Looking for SSID: '%s'", wifi_config_.sta.ssid);
-
-    for (int i = 0; i < ap_count; i++) {
-      if (strcmp((char *)ap_records[i].ssid, (char *)wifi_config_.sta.ssid) == 0) {
-        your_ssid_count++;
-        ESP_LOGI(
-          TAG, "Found your SSID: '%s' on channel %d, RSSI: %d dBm", ap_records[i].ssid, ap_records[i].primary,
-          ap_records[i].rssi
-        );
-
-        // Calculate score: RSSI - channel congestion penalty
-        int score = ap_records[i].rssi;
-
-        // Penalty for crowded channels (1, 6, 11 are most common)
-        if (ap_records[i].primary == 1 || ap_records[i].primary == 6 || ap_records[i].primary == 11) {
-          score -= 10; // Penalty for crowded channels
-        }
-
-        if (score > best_score) {
-          best_score = score;
-          best_ap = i;
-        }
-      }
-    }
-
-    if (best_ap >= 0) {
-      ESP_LOGI(
-        TAG, "Best AP found: %s on channel %d, RSSI: %d dBm (score: %d)", ap_records[best_ap].ssid,
-        ap_records[best_ap].primary, ap_records[best_ap].rssi, best_score
-      );
-
-      // Update config with best AP info
-      memcpy(wifi_config_.sta.bssid, ap_records[best_ap].bssid, 6);
-      esp_wifi_set_config(WIFI_IF_STA, &wifi_config_);
-    } else {
-      ESP_LOGW(
-        TAG, "Your SSID '%s' not found in scan results (%d APs found)", wifi_config_.sta.ssid, your_ssid_count
-      );
-    }
-
-    free(ap_records);
-    return esp_wifi_connect();
-  }
   esp_err_t WiFi_DPP::init() {
     if (initialized_) {
       ESP_LOGW(TAG, "Already initialized");
@@ -284,14 +183,6 @@ namespace wifi {
       provisioned_ = true;
     }
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    
-    // Force WiFi to use the stored channel (if provisioned)
-    if (provisioned_ && wifi_config_.sta.channel != 0) {
-      ESP_LOGI(TAG, "Forcing WiFi to channel %d (from NVS)", wifi_config_.sta.channel);
-      wifi_config_.sta.scan_method = WIFI_FAST_SCAN;
-      wifi_config_.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
-      ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config_));
-    }
     
     if (!provisioned_) {
       ESP_ERROR_CHECK(esp_supp_dpp_init(NULL));
@@ -334,5 +225,45 @@ namespace wifi {
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, trampoline));
     vEventGroupDelete(event_group_);
     return ret;
+  }
+
+  esp_err_t WiFi_DPP::set_credentials(const char *ssid, const char *password) {
+    if (!ssid || strlen(ssid) == 0 || strlen(ssid) >= sizeof(wifi_config_.sta.ssid)) {
+      ESP_LOGE(TAG, "Invalid SSID");
+      return ESP_ERR_INVALID_ARG;
+    }
+    if (!password || strlen(password) >= sizeof(wifi_config_.sta.password)) {
+      ESP_LOGE(TAG, "Invalid password");
+      return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting WiFi credentials: SSID=%s", ssid);
+
+    // Get current config
+    wifi_config_t wifi_config = {};
+    esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
+
+    // Set SSID and password
+    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+    wifi_config.sta.ssid[sizeof(wifi_config.sta.ssid) - 1] = '\0';
+    
+    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
+    wifi_config.sta.password[sizeof(wifi_config.sta.password) - 1] = '\0';
+    
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+
+    // Set config (automatically saves to NVS)
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to set WiFi config: %s", esp_err_to_name(err));
+      return err;
+    }
+
+    // Update internal config
+    memcpy(&wifi_config_, &wifi_config, sizeof(wifi_config_t));
+    provisioned_ = true;
+
+    ESP_LOGI(TAG, "WiFi credentials set successfully");
+    return ESP_OK;
   }
 }

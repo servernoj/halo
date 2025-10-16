@@ -1,6 +1,6 @@
-#include "nvs.h"
 #include <esp_app_format.h>
 #include <esp_log.h>
+#include <nvs.h>
 #include <nvs_flash.h>
 
 #include <Coordinator.hpp>
@@ -60,5 +60,4 @@ extern "C" void app_main(void) {
   ESP_ERROR_CHECK(motor::Motor::instance().init());
   ESP_ERROR_CHECK(i2c_slave::I2C::instance().init());
   ESP_ERROR_CHECK(zigbee::Coordinator::instance().init());
-  // ESP_ERROR_CHECK(pg::init());
 }

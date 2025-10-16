@@ -1,42 +1,34 @@
-import i2c from '@/i2c-stub.js'
-
-const deviceAddr = 0x42
-
+import { writeRegister } from './i2c-util.js'
 
 /**
  * @param {Array<{steps: number, delay: number}>} profile A sequence of motor steps to run in FIXED + COAST mode
  */
 export const runProfile = async (profile = []) => {
-  const bus = await i2c.openPromisified(1)
-  const buf = Buffer.alloc(2)
-  const payload = profile.slice(0, 16).reduce(
-    (acc, move) => {
-      buf.writeInt16LE(move.steps)
-      acc.push(...buf)
-      buf.writeUInt16LE(move.delay)
-      acc.push(...buf)
-      return acc
-    },
-    []
-  )
-  const data = [0x10, 0x02, ...payload]
-  await bus.i2cWrite(deviceAddr, data.length, Buffer.from(data))
-  await bus.close()
+  // Each move is 4 bytes (int16 + uint16)
+  // Max 15 moves per I2C write (60 bytes)
+  const MAX_MOVES_PER_WRITE = 15
+  
+  for (let i = 0; i < profile.length; i += MAX_MOVES_PER_WRITE) {
+    const chunk = profile.slice(i, i + MAX_MOVES_PER_WRITE)
+    const buffer = Buffer.alloc(chunk.length * 4)
+    
+    chunk.forEach((move, idx) => {
+      buffer.writeInt16LE(move.steps, idx * 4)
+      buffer.writeUInt16LE(move.delay, idx * 4 + 2)
+    })
+    
+    await writeRegister(0x23, buffer)
+  }
 }
 
 /**
  * @param {number} dir Direction (+1/-1) of the free run
  */
 export const freeRun = async (dir = -1) => {
-  const bus = await i2c.openPromisified(1)
-  const data = [0x10, 0x01, dir > 0 ? 0x01 : 0xFF]
-  await bus.i2cWrite(deviceAddr, data.length, Buffer.from(data))
-  await bus.close()
+  const dirByte = dir > 0 ? 0x01 : 0xFF
+  await writeRegister(0x22, Buffer.from([dirByte]))
 }
 
 export const stop = async () => {
-  const bus = await i2c.openPromisified(1)
-  const data = [0x10, 0x00]
-  await bus.i2cWrite(deviceAddr, data.length, Buffer.from(data))
-  await bus.close()
+  await writeRegister(0x21, Buffer.from([0x01]))
 }

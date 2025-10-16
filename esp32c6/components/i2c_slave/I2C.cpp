@@ -1,8 +1,11 @@
+#include <esp_app_format.h>
 #include <esp_check.h>
 #include <esp_log.h>
 
+#include "Common.hpp"
 #include "I2C.hpp"
 #include <Motor.hpp>
+#include <WiFi_DPP.hpp>
 #include <ota.hpp>
 
 using namespace motor;
@@ -49,6 +52,7 @@ namespace i2c_slave {
       .send_buf_depth = I2C::BUF_SIZE,
       .receive_buf_depth = I2C::BUF_SIZE,
       .slave_addr = I2C::DEVICE_ADDR,
+      .addr_bit_len = I2C_ADDR_BIT_LEN_7,
       .flags = {.allow_pd = 0, .enable_internal_pullup = false, .broadcast_en = 0}
     };
     ESP_RETURN_ON_ERROR(
@@ -86,82 +90,99 @@ namespace i2c_slave {
           if (evt.data->length > 0) {
             lastAddr = evt.data->buffer[0];
             isAddressSet = true;
-            if (evt.data->length >= 2) {
-              size_t rx_len = strnlen((char *)evt.data->buffer + 2, BUF_SIZE - 2);
-              ESP_LOGI(
-                I2C::TAG, "Received command [0x%02X]: 0x%02X",
-                lastAddr, //
-                evt.data->buffer[1] //
-              );
-              if (rx_len > 0 && rx_len < BUF_SIZE - 2) {
-                evt.data->buffer[rx_len + 2] = '\0';
+            switch (lastAddr) {
+              case I2C::REG_OTA_URL: {
+                // Write: Set OTA URL (data starts at buffer[1])
+                size_t urlLength = evt.data->length - 1;
+                if (urlLength > 0 && urlLength < BUF_SIZE) {
+                  ((char *)evt.data->buffer)[evt.data->length] = '\0';
+                  ESP_LOGI(TAG, "Set OTA URL: %s", (const char *)(evt.data->buffer + 1));
+                  ota::OTA::instance().set_ota_url((char *)evt.data->buffer + 1);
+                } else {
+                  ESP_LOGW(TAG, "OTA URL length invalid: %d", urlLength);
+                }
+                break;
               }
-              if (lastAddr == I2C::REG_CONTROL_MOTOR) {
-                uint8_t trajectory = evt.data->buffer[1];
-                switch (trajectory) {
-                  case 0: {
-                    // stop
+              case I2C::REG_OTA_TRIGGER: {
+                // Write: Trigger OTA update
+                ESP_LOGI(TAG, "Trigger OTA update");
+                ota::OTA::instance().trigger_ota_update();
+                break;
+              }
+              case I2C::REG_OTA_RESET_STATUS: {
+                // Write: Reset OTA status
+                ESP_LOGI(TAG, "Reset OTA status");
+                ota::OTA::instance().reset_status();
+                break;
+              }
+              case I2C::REG_MOTOR_STOP: {
+                // Write: Stop motor
+                ESP_LOGI(TAG, "Motor stop");
+                Motor::instance().submit(Move {.end_action = EndAction::COAST, .move_type = MoveType::STOP});
+                break;
+              }
+              case I2C::REG_MOTOR_FREE_RUN: {
+                // Write: Free run motor (1 byte: direction)
+                int8_t dir = -1;
+                if (evt.data->length > 1) {
+                  dir = *(int8_t *)(evt.data->buffer + 1) > 0 ? +1 : -1;
+                }
+                ESP_LOGI(TAG, "Motor free run, dir=%d", dir);
+                Motor::instance().submit(
+                  Move {
+                    .steps = dir,
+                    .end_action = EndAction::HOLD,
+                    .move_type = MoveType::FREE,
+                  }
+                );
+                break;
+              }
+              case I2C::REG_MOTOR_PROFILE: {
+                // Write: Motor profile (array of {int16 steps, uint16 delay})
+                size_t dataLength = evt.data->length - 1;
+                if (dataLength % 4 == 0 && dataLength <= 60) {
+                  int N = dataLength / 4;
+                  uint16_t *offset = (uint16_t *)(evt.data->buffer + 1);
+                  ESP_LOGI(TAG, "Motor profile: %d moves", N);
+                  for (int i = 0; i < N; i++) {
+                    int32_t steps = *(int16_t *)(offset + i * 2);
+                    uint32_t delay = *(offset + i * 2 + 1);
                     Motor::instance().submit(
                       Move {
-                        .move_type = MoveType::STOP,
+                        .steps = steps,
+                        .delay_ms = delay,
+                        .move_type = MoveType::FIXED,
                       }
                     );
-                    break;
                   }
-                  case 1: {
-                    // free run
-                    int8_t dir = -1;
-                    if (evt.data->length > 2) {
-                      dir = *(int8_t *)(evt.data->buffer + 2);
-                    }
-                    Motor::instance().submit(
-                      Move {
-                        .steps = dir,
-                        .move_type = MoveType::FREE,
-                      }
-                    );
-                    break;
-                  }
-                  case 2: {
-                    // define profile
-                    if ((evt.data->length - 2) % 4 == 0) {
-                      int N = (evt.data->length - 2) / 4;
-                      uint16_t *offset = (uint16_t *)(evt.data->buffer + 2);
-                      for (int i = 0; i < N; i++) {
-                        int32_t steps = *(int16_t *)(offset + i * 2);
-                        uint32_t delay = *(offset + i * 2 + 1);
-                        Motor::instance().submit(
-                          Move {
-                            .steps = steps,
-                            .delay_ms = delay,
-                            .move_type = MoveType::FIXED,
-                          }
-                        );
-                      }
-                    }
-                    break;
-                  }
+                } else {
+                  ESP_LOGW(TAG, "Invalid motor profile length: %d bytes", dataLength);
                 }
-              } else if (lastAddr == I2C::REG_CONTROL_OTA) {
-                uint8_t cmd = evt.data->buffer[1];
-                switch (cmd) {
-                  case 0: {
-                    // Set OTA URL
-                    size_t urlLength = evt.data->length - 2;
-                    if (urlLength > 0) {
-                      ((char *)evt.data->buffer)[evt.data->length] = '\0';
-                      ESP_LOGI(TAG, "Set OTA URL: %s", (const char *)(evt.data->buffer + 2));
-                      ota::OTA::instance().set_ota_url((char *)evt.data->buffer + 2);
-                    }
-                    break;
-                  }
-                  case 1: {
-                    // Trigger OTA update
-                    ota::OTA::instance().trigger_ota_update();
-                    break;
-                  }
-                }
+                break;
               }
+              case I2C::REG_WIFI_CREDENTIALS: {
+                // Write: Set WiFi credentials (SSID\0password\0)
+                // Format: [register_addr][ssid]['\0'][password]['\0']
+                size_t dataLength = evt.data->length - 1;
+                if (dataLength > 2 && dataLength < BUF_SIZE) {
+                  const char *ssid = (const char *)(evt.data->buffer + 1);
+                  size_t ssid_len = strnlen(ssid, dataLength);
+
+                  if (ssid_len < dataLength - 1) {
+                    const char *password = ssid + ssid_len + 1;
+                    ESP_LOGI(TAG, "Set WiFi credentials: SSID=%s", ssid);
+                    wifi::WiFi_DPP::instance().set_credentials(ssid, password);
+                  } else {
+                    ESP_LOGW(TAG, "WiFi credentials format invalid (missing password)");
+                  }
+                } else {
+                  ESP_LOGW(TAG, "WiFi credentials length invalid: %d bytes", dataLength);
+                }
+                break;
+              }
+              default:
+                ESP_LOGW(TAG, "Unknown write register: 0x%02X", lastAddr);
+                break;
             }
           } else {
             isAddressSet = false;
@@ -169,27 +190,95 @@ namespace i2c_slave {
         } else if (evt.type == I2C_SLAVE_EVT_TX) {
           uint8_t tx[BUF_SIZE];
           memset(tx, 0, BUF_SIZE);
-          tx[0] = I2C::DEVICE_ID;
           size_t tx_len = 1;
+
           if (isAddressSet) {
+            ESP_LOGI(I2C::TAG, "Read from register 0x%02X", lastAddr);
+
             switch (lastAddr) {
-              case I2C::REG_STATUS_MOTOR: {
-                tx[0] = static_cast<uint8_t>(Motor::instance().getState());
+              case I2C::REG_DEVICE_ID: {
+                tx[0] = I2C::DEVICE_ID;
+                tx_len = 1;
                 break;
               }
-              case I2C::REG_STATUS_OTA: {
-                tx_len = BUF_SIZE;
-                memset(tx, 0, tx_len);
-                ota::OTA::instance().get_ota_url((char *)tx, &tx_len);
-                ESP_LOGI(TAG, "Stored OTA URL '%s'", tx);
+              case I2C::REG_OTA_URL: {
+                // Read: Get OTA URL
+                size_t buf_len = BUF_SIZE;
+                ota::OTA::instance().get_ota_url((char *)tx, &buf_len);
+                tx_len = buf_len;
+                ESP_LOGI(TAG, "Read OTA URL: %s", tx);
+                break;
+              }
+              case I2C::REG_OTA_STATE: {
+                const auto &status = ota::OTA::instance().get_status();
+                tx[0] = static_cast<uint8_t>(status.state);
+                tx_len = 1;
+                break;
+              }
+              case I2C::REG_OTA_PROGRESS: {
+                const auto &status = ota::OTA::instance().get_status();
+                tx[0] = status.progress;
+                tx_len = 1;
+                break;
+              }
+              case I2C::REG_OTA_ERROR_CODE: {
+                const auto &status = ota::OTA::instance().get_status();
+                memcpy(tx, &status.error_code, 4); // Little Endian (int32_t)
+                tx_len = 4;
+                break;
+              }
+              case I2C::REG_OTA_BYTES_DOWNLOADED: {
+                const auto &status = ota::OTA::instance().get_status();
+                memcpy(tx, &status.bytes_downloaded, 4); // Little Endian (uint32_t)
+                tx_len = 4;
+                break;
+              }
+              case I2C::REG_OTA_ERROR_FUNCTION: {
+                const auto &status = ota::OTA::instance().get_status();
+                strncpy((char *)tx, status.error_function, 32);
+                tx[31] = '\0';
+                tx_len = strnlen((char *)tx, 32) + 1; // Include null terminator
+                break;
+              }
+              case I2C::REG_MOTOR_STATE: {
+                tx[0] = static_cast<uint8_t>(Motor::instance().getState());
+                tx_len = 1;
+                break;
+              }
+              case I2C::REG_FIRMWARE_VERSION: {
+                const esp_app_desc_t *app_desc = esp_app_get_description();
+                strncpy((char *)tx, app_desc->version, BUF_SIZE - 1);
+                tx[BUF_SIZE - 1] = '\0';
+                tx_len = strnlen((char *)tx, BUF_SIZE) + 1; // Include null terminator
+                ESP_LOGI(TAG, "Firmware version: %s", tx);
+                break;
+              }
+              case I2C::REG_FIRMWARE_BUILD_DATE: {
+                const esp_app_desc_t *app_desc = esp_app_get_description();
+                strncpy((char *)tx, app_desc->date, BUF_SIZE - 1);
+                tx[BUF_SIZE - 1] = '\0';
+                tx_len = strnlen((char *)tx, BUF_SIZE) + 1;
+                break;
+              }
+              case I2C::REG_FIRMWARE_BUILD_TIME: {
+                const esp_app_desc_t *app_desc = esp_app_get_description();
+                strncpy((char *)tx, app_desc->time, BUF_SIZE - 1);
+                tx[BUF_SIZE - 1] = '\0';
+                tx_len = strnlen((char *)tx, BUF_SIZE) + 1;
                 break;
               }
               default: {
-                tx[0] = 0xFF;
+                tx[0] = 0xFF; // Invalid register
+                tx_len = 1;
+                ESP_LOGW(TAG, "Unknown read register: 0x%02X", lastAddr);
                 break;
               }
             }
+          } else {
+            tx[0] = 0xFF;
+            tx_len = 1;
           }
+
           ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, tx, tx_len, &bytesWritten, 0));
           isAddressSet = false;
         }

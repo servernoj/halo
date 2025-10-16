@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "ota.hpp"
+#include "ota_nvs_keys.hpp"
 #include <WiFi_DPP.hpp>
 
 namespace ota {
@@ -13,6 +14,45 @@ namespace ota {
     if (initialized_) {
       ESP_LOGW(TAG, "OTA already initialized");
       return ESP_OK;
+    }
+
+    // Load status from NVS
+    status_.load_from_nvs();
+
+    // Handle stale OTA states after reboot
+    switch (status_.state) {
+      case OTAState::DOWNLOADING:
+      case OTAState::VERIFYING:
+      case OTAState::FLASHING:
+        // OTA was interrupted by reboot - mark as failed
+        ESP_LOGW(TAG, "Found interrupted OTA state: %d, marking as ERROR", static_cast<int>(status_.state));
+        status_.state = OTAState::ERROR;
+        if (status_.error_code == ESP_OK) {
+          status_.error_code = ESP_ERR_INVALID_STATE;
+          strncpy(status_.error_function, "interrupted_by_reboot", sizeof(status_.error_function) - 1);
+        }
+        status_.save_to_nvs();
+        break;
+      
+      case OTAState::COMPLETE:
+        // OTA completed successfully - clear status for next update
+        ESP_LOGI(TAG, "Previous OTA completed successfully, clearing status");
+        status_.clear_nvs();
+        status_ = OTAStatus(); // Reset to default (IDLE)
+        break;
+      
+      case OTAState::ERROR:
+        // Keep error state for debugging
+        ESP_LOGW(TAG, "Previous OTA failed: %s in %s", 
+                 esp_err_to_name(status_.error_code), 
+                 status_.error_function);
+        break;
+      
+      case OTAState::IDLE:
+      case OTAState::UNKNOWN:
+      default:
+        // Normal states, no action needed
+        break;
     }
 
     // Check if we're in PENDING_VERIFY state
@@ -61,7 +101,7 @@ namespace ota {
       return err;
     }
 
-    err = nvs_set_str(nvs_handle, NVS_URL_KEY, url);
+    err = nvs_set_str(nvs_handle, NVS_KEY_URL, url);
     if (err == ESP_OK) {
       err = nvs_commit(nvs_handle);
       ESP_LOGI(TAG, "OTA URL updated: %s", url);
@@ -73,16 +113,16 @@ namespace ota {
 
   esp_err_t OTA::get_ota_url(char *url_buffer, size_t *buffer_size) {
     nvs_handle_t nvs_handle;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
       return err;
     }
 
     size_t required_size = 0;
-    err = nvs_get_str(nvs_handle, NVS_URL_KEY, NULL, &required_size);
+    err = nvs_get_str(nvs_handle, NVS_KEY_URL, NULL, &required_size);
     if (err == ESP_OK && required_size <= *buffer_size) {
-      err = nvs_get_str(nvs_handle, NVS_URL_KEY, url_buffer, &required_size);
+      err = nvs_get_str(nvs_handle, NVS_KEY_URL, url_buffer, &required_size);
       if (err == ESP_OK) {
         *buffer_size = required_size;
       }
@@ -106,7 +146,7 @@ namespace ota {
       return err;
     }
 
-    err = nvs_set_u8(nvs_handle, NVS_OTA_MODE_KEY, 1);
+    err = nvs_set_u8(nvs_handle, NVS_KEY_MODE, 1);
     if (err == ESP_OK) {
       err = nvs_commit(nvs_handle);
     }
@@ -133,7 +173,7 @@ namespace ota {
     }
 
     uint8_t ota_mode = 0;
-    err = nvs_get_u8(nvs_handle, NVS_OTA_MODE_KEY, &ota_mode);
+    err = nvs_get_u8(nvs_handle, NVS_KEY_MODE, &ota_mode);
     nvs_close(nvs_handle);
 
     if (err == ESP_OK && ota_mode == 1) {
@@ -146,12 +186,15 @@ namespace ota {
   esp_err_t OTA::perform_ota_mode_update() {
     ESP_LOGI(TAG, "=== Entering OTA Mode ===");
 
+    // Set initial state
+    set_state(OTAState::DOWNLOADING);
+
     // Helper lambda to clear OTA mode flag
     auto clear_ota_mode = []() {
       nvs_handle_t nvs_handle;
       esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
       if (err == ESP_OK) {
-        nvs_erase_key(nvs_handle, NVS_OTA_MODE_KEY);
+        nvs_erase_key(nvs_handle, NVS_KEY_MODE);
         nvs_commit(nvs_handle);
         nvs_close(nvs_handle);
         ESP_LOGI(TAG, "OTA mode flag cleared");
@@ -164,6 +207,7 @@ namespace ota {
     esp_err_t err = get_ota_url(url, &buf_len);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "No OTA URL configured in NVS");
+      set_error(err, "get_ota_url");
       clear_ota_mode();
       return ESP_ERR_NOT_FOUND;
     }
@@ -174,6 +218,7 @@ namespace ota {
     err = init_wifi();
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to initialize WiFi: %s", esp_err_to_name(err));
+      set_error(err, "init_wifi");
       clear_ota_mode();
       deinit_wifi();
       return err;
@@ -185,6 +230,7 @@ namespace ota {
     const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
     if (update_partition == NULL) {
       ESP_LOGE(TAG, "No OTA partition found");
+      set_error(ESP_ERR_NOT_FOUND, "esp_ota_get_next_update_partition");
       clear_ota_mode();
       deinit_wifi();
       return ESP_ERR_NOT_FOUND;
@@ -194,12 +240,13 @@ namespace ota {
     err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
+      set_error(err, "esp_ota_begin");
       clear_ota_mode();
       deinit_wifi();
       return err;
     }
 
-    ota_context_t ota_context = {ota_handle, false, 0, 0};
+    ota_context_t ota_context = {ota_handle, false, 0, 0, &status_};
 
     esp_http_client_config_t config = {};
     config.url = url;
@@ -213,11 +260,15 @@ namespace ota {
     err = esp_http_client_perform(client);
 
     if (err == ESP_OK && ota_context.ota_success) {
+      set_state(OTAState::VERIFYING);
       err = esp_ota_end(ota_handle);
       if (err == ESP_OK) {
+        set_state(OTAState::FLASHING);
         err = esp_ota_set_boot_partition(update_partition);
         if (err == ESP_OK) {
           ESP_LOGI(TAG, "OTA update successful (%d bytes)", ota_context.total_written);
+          set_state(OTAState::COMPLETE);
+          status_.clear_nvs();
           clear_ota_mode();
           esp_http_client_cleanup(client);
           deinit_wifi();
@@ -226,12 +277,15 @@ namespace ota {
           esp_restart();
         } else {
           ESP_LOGE(TAG, "Failed to set boot partition: %s", esp_err_to_name(err));
+          set_error(err, "esp_ota_set_boot_partition");
         }
       } else {
         ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(err));
+        set_error(err, "esp_ota_end");
       }
     } else {
       ESP_LOGE(TAG, "OTA download failed: %s", esp_err_to_name(err));
+      set_error(err, "esp_http_client_perform");
       esp_ota_abort(ota_handle);
     }
 
@@ -275,10 +329,25 @@ namespace ota {
           if (err != ESP_OK) {
             ESP_LOGE(TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
             ota_context->ota_success = false;
+            if (ota_context->status) {
+              ota_context->status->state = OTAState::ERROR;
+              ota_context->status->error_code = err;
+              strncpy(ota_context->status->error_function, "esp_ota_write", sizeof(ota_context->status->error_function) - 1);
+              ota_context->status->save_to_nvs();
+            }
             return ESP_FAIL;
           }
           ota_context->total_written += evt->data_len;
           ota_context->ota_success = true;
+
+          // Update status with progress
+          if (ota_context->status) {
+            ota_context->status->bytes_downloaded = ota_context->total_written;
+            if (ota_context->content_length > 0) {
+              ota_context->status->progress = (ota_context->total_written * 100) / ota_context->content_length;
+            }
+            ota_context->status->save_to_nvs();
+          }
 
           // Print progress every 16KB for more frequent updates
           if (ota_context->content_length > 0) {
@@ -316,6 +385,32 @@ namespace ota {
   esp_err_t OTA::deinit_wifi() {
     ESP_LOGI(TAG, "Deinitializing WiFi after OTA");
     return wifi::WiFi_DPP::instance().deinit();
+  }
+
+  void OTA::reset_status() {
+    status_ = OTAStatus();
+    status_.clear_nvs();
+    ESP_LOGI(TAG, "OTA status reset to IDLE");
+  }
+
+  void OTA::set_state(OTAState state) {
+    status_.state = state;
+    status_.save_to_nvs();
+    ESP_LOGI(TAG, "OTA state changed to %d", static_cast<uint8_t>(state));
+  }
+
+  void OTA::set_error(esp_err_t err, const char *function_name) {
+    status_.state = OTAState::ERROR;
+    status_.error_code = err;
+    strncpy(status_.error_function, function_name, sizeof(status_.error_function) - 1);
+    status_.error_function[sizeof(status_.error_function) - 1] = '\0';
+    status_.save_to_nvs();
+    ESP_LOGE(TAG, "OTA error in %s: %s", function_name, esp_err_to_name(err));
+  }
+
+  void OTA::set_progress(uint8_t progress) {
+    status_.progress = progress;
+    status_.save_to_nvs();
   }
 
 }

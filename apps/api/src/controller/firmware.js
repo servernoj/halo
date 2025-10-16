@@ -1,4 +1,5 @@
 import express from 'express'
+import * as tools from '@/tools/index.js'
 import { validator } from '@/controller/mw/index.js'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
@@ -20,6 +21,16 @@ router.get(
     const data = await fs.readFile(path)
     res.setHeader('Content-Type', mime.getType(path) || 'application/octet-stream');
     res.send(data);
+  }
+)
+
+router.get(
+  '/version',
+  async (req, res) => {
+    const version = await tools.firmware.getVersion()
+    const buildDate = await tools.firmware.getBuildDate()
+    const buildTime = await tools.firmware.getBuildTime()
+    res.json({ version, buildDate, buildTime })
   }
 )
 

@@ -1,4 +1,0 @@
-.cache
-managed_components
-build/*
-!build/halo.bin

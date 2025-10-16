@@ -17,10 +17,13 @@ namespace wifi {
         static WiFi_DPP s;
         return s;
       }
+      
+      // DPP methods
       esp_err_t init();
       esp_err_t deinit();
-      esp_err_t reset_provisioning();
-      esp_err_t scan_and_connect();
+      
+      // Credentials method (alternative to DPP)
+      esp_err_t set_credentials(const char *ssid, const char *password);
 
     private:
       static constexpr const char *TAG = "WiFi_DPP";

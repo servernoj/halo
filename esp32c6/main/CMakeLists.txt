@@ -8,5 +8,4 @@ idf_component_register(
     pg
     i2c_slave
     nvs_flash
-    wifi_dpp
 )
