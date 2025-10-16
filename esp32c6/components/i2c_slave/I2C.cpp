@@ -80,16 +80,21 @@ namespace i2c_slave {
   }
 
   void I2C::taskLoop() {
-    uint8_t lastAddr;
-    bool isAddressSet = false;
+    enum class ReadState { WAITING_FOR_ADDR, SENT_LENGTH, SENDING_DATA };
+
+    uint8_t lastAddr = 0;
+    uint8_t dataLength = 0;
+    uint8_t dataBuffer[BUF_SIZE - 1]; // Reserve space for length byte
+    ReadState readState = ReadState::WAITING_FOR_ADDR;
     uint32_t bytesWritten;
+
     for (;;) {
       i2c_slave_event_t evt;
       if (xQueueReceive(event_queue_, &evt, 10) == pdTRUE) {
         if (evt.type == I2C_SLAVE_EVT_RX) {
           if (evt.data->length > 0) {
             lastAddr = evt.data->buffer[0];
-            isAddressSet = true;
+            readState = ReadState::WAITING_FOR_ADDR; // Reset on new address
             if (evt.data->length > 1) {
               switch (lastAddr) {
                 case I2C::REG_OTA_URL: {
@@ -188,126 +193,113 @@ namespace i2c_slave {
                   break;
               }
             }
-          } else {
-            isAddressSet = false;
           }
         } else if (evt.type == I2C_SLAVE_EVT_TX) {
-          uint8_t tx[BUF_SIZE];
-          memset(tx, 0, BUF_SIZE);
-          size_t tx_len = 1;
-
-          if (isAddressSet) {
-            ESP_LOGI(I2C::TAG, "Read from register 0x%02X", lastAddr);
+          if (readState == ReadState::WAITING_FOR_ADDR) {
+            // First TX: Send length byte
+            ESP_LOGI(I2C::TAG, "Read from register 0x%02X - sending length", lastAddr);
 
             switch (lastAddr) {
               case I2C::REG_DEVICE_ID: {
-                tx[0] = 1; // Length
-                tx[1] = I2C::DEVICE_ID;
-                tx_len = 2;
+                dataLength = 1;
+                dataBuffer[0] = I2C::DEVICE_ID;
                 break;
               }
               case I2C::REG_OTA_URL: {
-                // Read: Get OTA URL (length-prefixed)
-                size_t buf_len = BUF_SIZE - 1; // Reserve first byte for length
-                esp_err_t err = ota::OTA::instance().get_ota_url((char *)(tx + 1), &buf_len);
+                // Read: Get OTA URL
+                size_t buf_len = sizeof(dataBuffer);
+                esp_err_t err = ota::OTA::instance().get_ota_url((char *)dataBuffer, &buf_len);
                 if (err == ESP_OK) {
-                  tx[0] = (uint8_t)buf_len; // First byte is length (including null terminator)
-                  tx_len = buf_len + 1;
+                  dataLength = (uint8_t)buf_len;
                 } else {
-                  tx[0] = 1; // Length = 1 (just null terminator)
-                  tx[1] = '\0';
-                  tx_len = 2;
+                  dataLength = 1;
+                  dataBuffer[0] = '\0';
                 }
-                ESP_LOGI(TAG, "Read OTA URL: len=%d, url=%s (err=%s)", tx[0], tx + 1, esp_err_to_name(err));
+                ESP_LOGI(
+                  TAG, "Read OTA URL: len=%d, url=%s (err=%s)", dataLength, dataBuffer, esp_err_to_name(err)
+                );
                 break;
               }
               case I2C::REG_OTA_STATE: {
                 const auto &status = ota::OTA::instance().get_status();
-                tx[0] = 1; // Length
-                tx[1] = static_cast<uint8_t>(status.state);
-                tx_len = 2;
+                dataLength = 1;
+                dataBuffer[0] = static_cast<uint8_t>(status.state);
                 break;
               }
               case I2C::REG_OTA_PROGRESS: {
                 const auto &status = ota::OTA::instance().get_status();
-                tx[0] = 1; // Length
-                tx[1] = status.progress;
-                tx_len = 2;
+                dataLength = 1;
+                dataBuffer[0] = status.progress;
                 break;
               }
               case I2C::REG_OTA_ERROR_CODE: {
                 const auto &status = ota::OTA::instance().get_status();
-                tx[0] = 4; // Length
-                memcpy(tx + 1, &status.error_code, 4); // Little Endian (int32_t)
-                tx_len = 5;
+                dataLength = 4;
+                memcpy(dataBuffer, &status.error_code, 4); // Little Endian (int32_t)
                 break;
               }
               case I2C::REG_OTA_BYTES_DOWNLOADED: {
                 const auto &status = ota::OTA::instance().get_status();
-                tx[0] = 4; // Length
-                memcpy(tx + 1, &status.bytes_downloaded, 4); // Little Endian (uint32_t)
-                tx_len = 5;
+                dataLength = 4;
+                memcpy(dataBuffer, &status.bytes_downloaded, 4); // Little Endian (uint32_t)
                 break;
               }
               case I2C::REG_OTA_ERROR_FUNCTION: {
                 const auto &status = ota::OTA::instance().get_status();
                 size_t len = strnlen(status.error_function, sizeof(status.error_function));
-                tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
-                memcpy(tx + 1, status.error_function, len);
-                tx[1 + len] = '\0';
-                tx_len = len + 2;
+                dataLength = (uint8_t)(len + 1); // Including null terminator
+                memcpy(dataBuffer, status.error_function, len);
+                dataBuffer[len] = '\0';
                 break;
               }
               case I2C::REG_MOTOR_STATE: {
-                tx[0] = 1; // Length
-                tx[1] = static_cast<uint8_t>(Motor::instance().getState());
-                tx_len = 2;
+                dataLength = 1;
+                dataBuffer[0] = static_cast<uint8_t>(Motor::instance().getState());
                 break;
               }
               case I2C::REG_FIRMWARE_VERSION: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
                 size_t len = strnlen(app_desc->version, 32); // version field is char[32]
-                tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
-                memcpy(tx + 1, app_desc->version, len);
-                tx[1 + len] = '\0';
-                tx_len = len + 2;
-                ESP_LOGI(TAG, "Firmware version: len=%d, version=%s", tx[0], tx + 1);
+                dataLength = (uint8_t)(len + 1); // Including null terminator
+                memcpy(dataBuffer, app_desc->version, len);
+                dataBuffer[len] = '\0';
+                ESP_LOGI(TAG, "Firmware version: len=%d, version=%s", dataLength, dataBuffer);
                 break;
               }
               case I2C::REG_FIRMWARE_BUILD_DATE: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
                 size_t len = strnlen(app_desc->date, 16); // date field is char[16]
-                tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
-                memcpy(tx + 1, app_desc->date, len);
-                tx[1 + len] = '\0';
-                tx_len = len + 2;
+                dataLength = (uint8_t)(len + 1); // Including null terminator
+                memcpy(dataBuffer, app_desc->date, len);
+                dataBuffer[len] = '\0';
                 break;
               }
               case I2C::REG_FIRMWARE_BUILD_TIME: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
                 size_t len = strnlen(app_desc->time, 16); // time field is char[16]
-                tx[0] = (uint8_t)(len + 1); // Length (including null terminator)
-                memcpy(tx + 1, app_desc->time, len);
-                tx[1 + len] = '\0';
-                tx_len = len + 2;
+                dataLength = (uint8_t)(len + 1); // Including null terminator
+                memcpy(dataBuffer, app_desc->time, len);
+                dataBuffer[len] = '\0';
                 break;
               }
               default: {
-                tx[0] = 1; // Length
-                tx[1] = 0xFF; // Invalid register
-                tx_len = 2;
+                dataLength = 1;
+                dataBuffer[0] = 0xFF; // Invalid register
                 ESP_LOGW(TAG, "Unknown read register: 0x%02X", lastAddr);
                 break;
               }
             }
-          } else {
-            tx[0] = 1; // Length
-            tx[1] = 0xFF; // No register set
-            tx_len = 2;
-          }
 
-          ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, tx, tx_len, &bytesWritten, 0));
-          isAddressSet = false;
+            // Send length byte
+            ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, &dataLength, 1, &bytesWritten, 0));
+            readState = ReadState::SENT_LENGTH;
+          } else if (readState == ReadState::SENT_LENGTH) {
+            // Second TX: Send actual data
+            ESP_LOGI(I2C::TAG, "Read from register 0x%02X - sending data (len=%d)", lastAddr, dataLength);
+            ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, dataBuffer, dataLength, &bytesWritten, 0));
+            readState = ReadState::WAITING_FOR_ADDR; // Reset for next read
+          }
+          ESP_LOGI(I2C::TAG, "%d bytes written", bytesWritten);
         }
       }
     }
