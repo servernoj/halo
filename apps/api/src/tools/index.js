@@ -4,6 +4,7 @@ import * as buzzer from './buzzer.js'
 import * as relay from './relay.js'
 import * as firmware from './firmware.js'
 import * as wifi from './wifi.js'
+import * as system from './system.js'
 import i2c from '@/i2c-stub.js'
 
 const sleep = (ms) => new Promise(
@@ -56,5 +57,6 @@ export {
   buzzer,
   relay,
   firmware,
-  wifi
+  wifi,
+  system
 }

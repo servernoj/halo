@@ -8,6 +8,7 @@ import buzzer from '@/controller/buzzer.js'
 import firmware from '@/controller/firmware.js'
 import relay from '@/controller/relay.js'
 import wifi from '@/controller/wifi.js'
+import system from '@/controller/system.js'
 
 const app = express()
 app.use(morgan('dev'))
@@ -21,6 +22,7 @@ app.use('/firmware', firmware)
 app.use('/buzzer', buzzer)
 app.use('/relay', relay)
 app.use('/wifi', wifi)
+app.use('/system', system)
 
 app.use(fallback)
 app.use(errorHandler)

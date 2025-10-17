@@ -91,13 +91,27 @@ namespace i2c_slave {
 
     for (;;) {
       i2c_slave_event_t evt;
-      if (xQueueReceive(event_queue_, &evt, 10) == pdTRUE) {
+      if (xQueueReceive(event_queue_, &evt, 0) == pdTRUE) {
         if (evt.type == I2C_SLAVE_EVT_RX) {
           if (evt.data->length > 0) {
             lastAddr = evt.data->buffer[0];
             readState = ReadState::WAITING_FOR_ADDR; // Reset on new address
             if (evt.data->length > 1) {
               switch (lastAddr) {
+                case REG_I2C_RESET: {
+                  ESP_LOGI(TAG, "I2C module reset requested");
+                  xQueueReset(event_queue_);
+                  readState = ReadState::WAITING_FOR_ADDR;
+                  lastAddr = 0;
+                  dataLength = 0;
+                  memset(dataBuffer, 0, sizeof(dataBuffer));
+                  break;
+                }
+                case REG_DEVICE_RESTART: {
+                  ESP_LOGI(TAG, "System restart requested");
+                  esp_restart();
+                  break;
+                }
                 case I2C::REG_OTA_URL: {
                   // Write: Set OTA URL (data starts at buffer[1])
                   size_t urlLength = evt.data->length - 1;
@@ -211,7 +225,6 @@ namespace i2c_slave {
           if (readState == ReadState::WAITING_FOR_ADDR) {
             // First TX: Send length byte
             ESP_LOGI(I2C::TAG, "Read from register 0x%02X - sending length", lastAddr);
-
             switch (lastAddr) {
               case I2C::REG_DEVICE_ID: {
                 dataLength = 1;
@@ -276,7 +289,6 @@ namespace i2c_slave {
                 break;
               }
             }
-
             // Send length byte
             ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, &dataLength, 1, &bytesWritten, 0));
             readState = ReadState::SENT_LENGTH;
