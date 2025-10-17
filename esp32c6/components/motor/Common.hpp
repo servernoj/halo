@@ -23,7 +23,7 @@ namespace motor {
     FixedOneTwentyEighth = 0b1111,
   };
   enum class EndAction { HOLD, COAST };
-  enum class MoveType { FIXED, FREE, STOP };
+  enum class MoveType { FIXED, FREE, STOP, HOLD, RELEASE };
   enum class MotorState { IDLE, DELAYED, STARTED, ERRORED };
 
   struct MotorCfg {

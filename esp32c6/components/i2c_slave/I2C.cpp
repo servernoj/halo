@@ -4,6 +4,7 @@
 
 #include "Common.hpp"
 #include "I2C.hpp"
+#include "ota_status.hpp"
 #include <Motor.hpp>
 #include <WiFi_DPP.hpp>
 #include <ota.hpp>
@@ -129,6 +130,18 @@ namespace i2c_slave {
                   );
                   break;
                 }
+                case I2C::REG_MOTOR_HOLD: {
+                  // Write: Hold motor
+                  ESP_LOGI(TAG, "Motor hold");
+                  Motor::instance().submit(Move {.move_type = MoveType::HOLD});
+                  break;
+                }
+                case I2C::REG_MOTOR_RELEASE: {
+                  // Write: Release motor
+                  ESP_LOGI(TAG, "Motor release");
+                  Motor::instance().submit(Move {.move_type = MoveType::RELEASE});
+                  break;
+                }
                 case I2C::REG_MOTOR_FREE_RUN: {
                   // Write: Free run motor (1 byte: direction)
                   int8_t dir = -1;
@@ -139,7 +152,7 @@ namespace i2c_slave {
                   Motor::instance().submit(
                     Move {
                       .steps = dir,
-                      .end_action = EndAction::HOLD,
+                      .end_action = EndAction::COAST,
                       .move_type = MoveType::FREE,
                     }
                   );
@@ -220,36 +233,10 @@ namespace i2c_slave {
                 );
                 break;
               }
-              case I2C::REG_OTA_STATE: {
+              case I2C::REG_OTA_STATUS: {
                 const auto &status = ota::OTA::instance().get_status();
-                dataLength = 1;
-                dataBuffer[0] = static_cast<uint8_t>(status.state);
-                break;
-              }
-              case I2C::REG_OTA_PROGRESS: {
-                const auto &status = ota::OTA::instance().get_status();
-                dataLength = 1;
-                dataBuffer[0] = status.progress;
-                break;
-              }
-              case I2C::REG_OTA_ERROR_CODE: {
-                const auto &status = ota::OTA::instance().get_status();
-                dataLength = 4;
-                memcpy(dataBuffer, &status.error_code, 4); // Little Endian (int32_t)
-                break;
-              }
-              case I2C::REG_OTA_BYTES_DOWNLOADED: {
-                const auto &status = ota::OTA::instance().get_status();
-                dataLength = 4;
-                memcpy(dataBuffer, &status.bytes_downloaded, 4); // Little Endian (uint32_t)
-                break;
-              }
-              case I2C::REG_OTA_ERROR_FUNCTION: {
-                const auto &status = ota::OTA::instance().get_status();
-                size_t len = strnlen(status.error_function, sizeof(status.error_function));
-                dataLength = (uint8_t)(len + 1); // Including null terminator
-                memcpy(dataBuffer, status.error_function, len);
-                dataBuffer[len] = '\0';
+                dataLength = sizeof(ota::OTAStatus);
+                memcpy(dataBuffer, &status, dataLength);
                 break;
               }
               case I2C::REG_MOTOR_STATE: {
@@ -298,8 +285,8 @@ namespace i2c_slave {
             ESP_LOGI(I2C::TAG, "Read from register 0x%02X - sending data (len=%d)", lastAddr, dataLength);
             ESP_ERROR_CHECK(i2c_slave_write(i2c_slave_handle_, dataBuffer, dataLength, &bytesWritten, 0));
             readState = ReadState::WAITING_FOR_ADDR; // Reset for next read
+            ESP_LOGI(I2C::TAG, "%d bytes written", bytesWritten);
           }
-          ESP_LOGI(I2C::TAG, "%d bytes written", bytesWritten);
         }
       }
     }

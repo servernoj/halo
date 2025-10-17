@@ -1,5 +1,6 @@
 #include <esp_check.h>
 
+#include "Common.hpp"
 #include "Motor.hpp"
 #include "MotorHal.hpp"
 #include "esp_log.h"
@@ -53,6 +54,13 @@ namespace motor {
     }
     if (mv.period_us == 0 || mv.high_us == 0 || mv.high_us >= mv.period_us) {
       return ESP_ERR_INVALID_ARG;
+    }
+
+    if (mv.move_type == MoveType::HOLD) {
+      return submit(Move {.steps = 1, .end_action = EndAction::HOLD, .move_type = MoveType::FIXED});
+    }
+    if (mv.move_type == MoveType::RELEASE) {
+      return submit(Move {.steps = 1, .end_action = EndAction::COAST, .move_type = MoveType::FIXED});
     }
 
     if (mv.move_type == MoveType::STOP) {

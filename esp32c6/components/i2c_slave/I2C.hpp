@@ -27,34 +27,32 @@ namespace i2c_slave {
       static constexpr uint8_t BUF_SIZE = 64;
       static constexpr uint8_t DEVICE_ID = 0xA5;
       static constexpr uint8_t DEVICE_ADDR = 0x42;
-      
+
       // OTA Registers (0x10 - 0x1F)
       static constexpr uint8_t REG_OTA_URL = 0x10;
       static constexpr uint8_t REG_OTA_TRIGGER = 0x11;
-      static constexpr uint8_t REG_OTA_STATE = 0x12;
-      static constexpr uint8_t REG_OTA_PROGRESS = 0x13;
-      static constexpr uint8_t REG_OTA_ERROR_CODE = 0x14;
-      static constexpr uint8_t REG_OTA_BYTES_DOWNLOADED = 0x15;
-      static constexpr uint8_t REG_OTA_ERROR_FUNCTION = 0x16;
-      static constexpr uint8_t REG_OTA_RESET_STATUS = 0x17;
-      
+      static constexpr uint8_t REG_OTA_STATUS = 0x12;
+      static constexpr uint8_t REG_OTA_RESET_STATUS = 0x13;
+
       // Motor Registers (0x20 - 0x2F)
       static constexpr uint8_t REG_MOTOR_STATE = 0x20;
       static constexpr uint8_t REG_MOTOR_STOP = 0x21;
       static constexpr uint8_t REG_MOTOR_FREE_RUN = 0x22;
       static constexpr uint8_t REG_MOTOR_PROFILE = 0x23;
-      
+      static constexpr uint8_t REG_MOTOR_HOLD = 0x24;
+      static constexpr uint8_t REG_MOTOR_RELEASE = 0x25;
+
       // Firmware Info Registers (0x30 - 0x3F)
       static constexpr uint8_t REG_FIRMWARE_VERSION = 0x30;
       static constexpr uint8_t REG_FIRMWARE_BUILD_DATE = 0x31;
       static constexpr uint8_t REG_FIRMWARE_BUILD_TIME = 0x32;
-      
+
       // WiFi Registers (0x40 - 0x4F)
       static constexpr uint8_t REG_WIFI_CREDENTIALS = 0x40;
-      
+
       // System Registers (0xF0 - 0xFF)
       static constexpr uint8_t REG_DEVICE_ID = 0xF0;
-      
+
       I2C() = default;
       I2C(const I2C &) = delete;
       I2C &operator=(const I2C &) = delete;

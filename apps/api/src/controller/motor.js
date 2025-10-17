@@ -45,6 +45,20 @@ router.post(
     res.sendStatus(200)
   }
 )
+router.post(
+  '/hold',
+  async (req, res) => {
+    await tools.motor.hold()
+    res.sendStatus(200)
+  }
+)
+router.post(
+  '/release',
+  async (req, res) => {
+    await tools.motor.release()
+    res.sendStatus(200)
+  }
+)
 
 
 

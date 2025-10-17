@@ -1,11 +1,13 @@
 #pragma once
 
-#include <esp_err.h>
 #include <cstdint>
+#include <esp_err.h>
 
+#pragma pack(push, 1)
+#pragma pack(1)
 namespace ota {
   enum class OTAState : uint8_t {
-    UNKNOWN = 0,      // Uninitialized/invalid state
+    UNKNOWN = 0, // Uninitialized/invalid state
     IDLE = 1,
     DOWNLOADING = 2,
     VERIFYING = 3,
@@ -30,3 +32,5 @@ namespace ota {
       esp_err_t clear_nvs();
   };
 } // namespace ota
+static_assert(sizeof(ota::OTAStatus) == 42, "OTAStatus must be exactly 42 bytes for I2C");
+#pragma pack(pop)
