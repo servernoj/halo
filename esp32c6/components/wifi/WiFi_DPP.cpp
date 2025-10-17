@@ -20,23 +20,24 @@ namespace wifi {
         }
         case WIFI_EVENT_STA_DISCONNECTED: {
           auto *disconn_info = static_cast<wifi_event_sta_disconnected_t *>(event_data);
-          ESP_LOGW(TAG, "WiFi disconnect - Reason: %d (%s), RSSI: %d", 
-                   disconn_info->reason,
-                   (disconn_info->reason == 2 ? "AUTH_EXPIRE" :
-                    disconn_info->reason == 3 ? "AUTH_LEAVE" :
-                    disconn_info->reason == 4 ? "ASSOC_EXPIRE" :
-                    disconn_info->reason == 5 ? "ASSOC_TOOMANY" :
-                    disconn_info->reason == 6 ? "NOT_AUTHED" :
-                    disconn_info->reason == 7 ? "NOT_ASSOCED" :
-                    disconn_info->reason == 8 ? "ASSOC_LEAVE" :
-                    disconn_info->reason == 15 ? "4WAY_HANDSHAKE_TIMEOUT" :
-                    disconn_info->reason == 201 ? "NO_AP_FOUND" :
-                    disconn_info->reason == 202 ? "AUTH_FAIL" :
-                    disconn_info->reason == 203 ? "ASSOC_FAIL" :
-                    disconn_info->reason == 204 ? "HANDSHAKE_TIMEOUT" :
-                    "UNKNOWN"),
-                   disconn_info->rssi);
-          
+          ESP_LOGW(
+            TAG, "WiFi disconnect - Reason: %d (%s), RSSI: %d", disconn_info->reason,
+            (disconn_info->reason == 2     ? "AUTH_EXPIRE"
+             : disconn_info->reason == 3   ? "AUTH_LEAVE"
+             : disconn_info->reason == 4   ? "ASSOC_EXPIRE"
+             : disconn_info->reason == 5   ? "ASSOC_TOOMANY"
+             : disconn_info->reason == 6   ? "NOT_AUTHED"
+             : disconn_info->reason == 7   ? "NOT_ASSOCED"
+             : disconn_info->reason == 8   ? "ASSOC_LEAVE"
+             : disconn_info->reason == 15  ? "4WAY_HANDSHAKE_TIMEOUT"
+             : disconn_info->reason == 201 ? "NO_AP_FOUND"
+             : disconn_info->reason == 202 ? "AUTH_FAIL"
+             : disconn_info->reason == 203 ? "ASSOC_FAIL"
+             : disconn_info->reason == 204 ? "HANDSHAKE_TIMEOUT"
+                                           : "UNKNOWN"),
+            disconn_info->rssi
+          );
+
           if (retry_count_ < WIFI_MAX_RETRY_NUM) {
             // Exponential backoff: wait longer between retries
             int delay_ms = (1 << retry_count_) * 1000; // 1s, 2s, 4s, 8s...
@@ -183,9 +184,9 @@ namespace wifi {
       provisioned_ = true;
     }
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    
+
     if (!provisioned_) {
-      ESP_ERROR_CHECK(esp_supp_dpp_init(NULL));
+      ESP_ERROR_CHECK(esp_supp_dpp_init());
       ESP_ERROR_CHECK(esp_supp_dpp_bootstrap_gen(DPP_CHANNEL_LIST, DPP_BOOTSTRAP_QR_CODE, NULL, ""));
     }
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -246,10 +247,10 @@ namespace wifi {
     // Set SSID and password
     strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
     wifi_config.sta.ssid[sizeof(wifi_config.sta.ssid) - 1] = '\0';
-    
+
     strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
     wifi_config.sta.password[sizeof(wifi_config.sta.password) - 1] = '\0';
-    
+
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
     // Set config (automatically saves to NVS)
