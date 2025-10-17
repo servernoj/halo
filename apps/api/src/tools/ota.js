@@ -1,5 +1,4 @@
 import { readRegister, writeRegister } from './i2c-util.js'
-import { sleep } from './index.js'
 
 const STATE_NAMES = {
   0: 'UNKNOWN',
@@ -37,7 +36,7 @@ export const getUrl = async () => {
 }
 
 export const triggerUpdate = async () => {
-  await writeRegister(0x11, Buffer.from([0x01]))
+  await writeRegister(0x11, null)
 }
 
 export const getStatus = async () => {

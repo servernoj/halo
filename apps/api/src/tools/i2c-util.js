@@ -35,7 +35,10 @@ export const readRegister = async (regAddr) => {
  */
 export const writeRegister = async (regAddr, data) => {
   const bus = await i2c.openPromisified(1)
-  const buffer = Buffer.from([regAddr, ...data])
+  const buffer = Buffer.from([
+    regAddr,
+    ...(data ?? Buffer.from([0xFF]))
+  ])
   await bus.i2cWrite(deviceAddr, buffer.length, buffer)
   await bus.close()
 }

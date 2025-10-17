@@ -258,6 +258,19 @@ namespace motor {
     return ESP_OK;
   }
 
+  esp_err_t MotorHal::holdOrRelease(bool doHold) {
+    if (last_move_.end_action == EndAction::COAST) {
+      ESP_RETURN_ON_ERROR(
+        gpio_set_level(
+          motor_cfg_.pins.en, //
+          doHold ? motor_cfg_.en_active_level : !motor_cfg_.en_active_level
+        ),
+        MotorHal::TAG, "gpio_set_level failed"
+      );
+    }
+    return ESP_OK;
+  }
+
   esp_err_t MotorHal::stopMove() {
     ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, 0));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));

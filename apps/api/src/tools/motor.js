@@ -30,13 +30,13 @@ export const freeRun = async (dir = -1) => {
 }
 
 export const stop = async () => {
-  await writeRegister(0x21, Buffer.from([0x01]))
+  await writeRegister(0x21, null)
 }
 
 export const hold = async () => {
-  await writeRegister(0x24, Buffer.from([0x01]))
+  await writeRegister(0x24, null)
 }
 
 export const release = async () => {
-  await writeRegister(0x25, Buffer.from([0x01]))
+  await writeRegister(0x25, null)
 }
