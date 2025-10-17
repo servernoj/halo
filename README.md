@@ -36,11 +36,48 @@ Environment=NODE_ENV=production
 [Install]
 WantedBy=multi-user.target
 ````
-PS: replace `<username>` with your actual username on RasPi
+**Note**: replace `<username>` with your actual username on RasPi
 
 Initialize the unit
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl start halo.service
 ```
+## Logging ESP32 console
 
+Connect `esp32c6` with `RasPi` via USB that doesn't pass VCC signal.
+
+Create `systemd` config `/etc/systemd/system/esp32-logger.service`:
+```` ini
+[Unit]
+Description=ESP32 Serial Logger
+After=multi-user.target
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'cat <USB-Serial Device path> | systemd-cat -t esp32 -p info'
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+````
+**Note**: Replace `<USB-Serial Device path>` with the actual device path.
+
+Load and start the new service:
+```` sh
+sudo systemctl daemon-reload
+sudo systemctl enable esp32-logger
+sudo systemctl start esp32-logger
+````
+
+Use either of the commands to work with the log:
+```` sh
+# View recent logs
+sudo journalctl -u esp32-logger -f
+# View logs from specific date
+sudo journalctl -u esp32-logger --since "2025-10-01" --until "2025-10-02"
+# Force rotation
+sudo journalctl --rotate
+# Vacuum old logs
+sudo journalctl --vacuum-time=30d
+sudo journalctl --vacuum-size=1G
+````
