@@ -300,6 +300,8 @@ namespace i2c_slave {
             ESP_LOGI(I2C::TAG, "%d bytes written", bytesWritten);
           }
         }
+      } else {
+        vTaskDelay(pdMS_TO_TICKS(10));
       }
     }
     vTaskDelete(NULL);
