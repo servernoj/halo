@@ -85,13 +85,13 @@ namespace i2c_slave {
 
     uint8_t lastAddr = 0;
     uint8_t dataLength = 0;
-    uint8_t dataBuffer[BUF_SIZE - 1]; // Reserve space for length byte
+    uint8_t dataBuffer[BUF_SIZE];
     ReadState readState = ReadState::WAITING_FOR_ADDR;
     uint32_t bytesWritten;
 
     for (;;) {
       i2c_slave_event_t evt;
-      if (xQueueReceive(event_queue_, &evt, 0) == pdTRUE) {
+      if (xQueueReceive(event_queue_, &evt, 10) == pdTRUE) {
         if (evt.type == I2C_SLAVE_EVT_RX) {
           if (evt.data->length > 0) {
             lastAddr = evt.data->buffer[0];
@@ -257,13 +257,21 @@ namespace i2c_slave {
                 dataBuffer[0] = static_cast<uint8_t>(Motor::instance().getState());
                 break;
               }
+              case REG_FIRMWARE_INFO: {
+                const esp_app_desc_t *app_desc = esp_app_get_description();
+                memset(dataBuffer, 0, sizeof(dataBuffer));
+                memcpy(dataBuffer, app_desc->version, strnlen(app_desc->version, 32));
+                memcpy(dataBuffer + 32, app_desc->date, strnlen(app_desc->date, 16));
+                memcpy(dataBuffer + 48, app_desc->time, strnlen(app_desc->time, 16));
+                dataLength = 64;
+                break;
+              }
               case I2C::REG_FIRMWARE_VERSION: {
                 const esp_app_desc_t *app_desc = esp_app_get_description();
                 size_t len = strnlen(app_desc->version, 32); // version field is char[32]
                 dataLength = (uint8_t)(len + 1); // Including null terminator
                 memcpy(dataBuffer, app_desc->version, len);
                 dataBuffer[len] = '\0';
-                ESP_LOGI(TAG, "Firmware version: len=%d, version=%s", dataLength, dataBuffer);
                 break;
               }
               case I2C::REG_FIRMWARE_BUILD_DATE: {
@@ -300,8 +308,6 @@ namespace i2c_slave {
             ESP_LOGI(I2C::TAG, "%d bytes written", bytesWritten);
           }
         }
-      } else {
-        vTaskDelay(pdMS_TO_TICKS(10));
       }
     }
     vTaskDelete(NULL);

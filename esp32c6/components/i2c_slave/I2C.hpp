@@ -46,6 +46,7 @@ namespace i2c_slave {
       static constexpr uint8_t REG_FIRMWARE_VERSION = 0x30;
       static constexpr uint8_t REG_FIRMWARE_BUILD_DATE = 0x31;
       static constexpr uint8_t REG_FIRMWARE_BUILD_TIME = 0x32;
+      static constexpr uint8_t REG_FIRMWARE_INFO = 0x33;
 
       // WiFi Registers (0x40 - 0x4F)
       static constexpr uint8_t REG_WIFI_CREDENTIALS = 0x40;

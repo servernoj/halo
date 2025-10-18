@@ -19,6 +19,14 @@ router.get(
 )
 
 router.get(
+  '/info',
+  async (req, res) => {
+    const info = await tools.firmware.getInfo()
+    res.json(info)
+  }
+)
+
+router.get(
   '/:file',
   validator({
     params: z.object({
