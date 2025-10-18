@@ -9,16 +9,6 @@ import mime from 'mime'
 const router = express.Router()
 
 router.get(
-  '/version',
-  async (req, res) => {
-    const version = await tools.firmware.getVersion()
-    const buildDate = await tools.firmware.getBuildDate()
-    const buildTime = await tools.firmware.getBuildTime()
-    res.json({ version, buildDate, buildTime })
-  }
-)
-
-router.get(
   '/info',
   async (req, res) => {
     const info = await tools.firmware.getInfo()

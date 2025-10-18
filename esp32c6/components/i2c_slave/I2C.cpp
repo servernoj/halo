@@ -266,30 +266,6 @@ namespace i2c_slave {
                 dataLength = 64;
                 break;
               }
-              case I2C::REG_FIRMWARE_VERSION: {
-                const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->version, 32); // version field is char[32]
-                dataLength = (uint8_t)(len + 1); // Including null terminator
-                memcpy(dataBuffer, app_desc->version, len);
-                dataBuffer[len] = '\0';
-                break;
-              }
-              case I2C::REG_FIRMWARE_BUILD_DATE: {
-                const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->date, 16); // date field is char[16]
-                dataLength = (uint8_t)(len + 1); // Including null terminator
-                memcpy(dataBuffer, app_desc->date, len);
-                dataBuffer[len] = '\0';
-                break;
-              }
-              case I2C::REG_FIRMWARE_BUILD_TIME: {
-                const esp_app_desc_t *app_desc = esp_app_get_description();
-                size_t len = strnlen(app_desc->time, 16); // time field is char[16]
-                dataLength = (uint8_t)(len + 1); // Including null terminator
-                memcpy(dataBuffer, app_desc->time, len);
-                dataBuffer[len] = '\0';
-                break;
-              }
               default: {
                 dataLength = 1;
                 dataBuffer[0] = 0xFF; // Invalid register
