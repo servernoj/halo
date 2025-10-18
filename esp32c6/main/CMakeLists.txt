@@ -5,7 +5,6 @@ idf_component_register(
     ota
     zigbee
     motor
-    pg
     i2c_slave
     nvs_flash
 )
