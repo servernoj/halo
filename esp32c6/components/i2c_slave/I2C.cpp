@@ -166,7 +166,7 @@ namespace i2c_slave {
                   Motor::instance().submit(
                     Move {
                       .steps = dir,
-                      .end_action = EndAction::COAST,
+                      .end_action = EndAction::HOLD,
                       .move_type = MoveType::FREE,
                     }
                   );
