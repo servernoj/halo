@@ -241,7 +241,7 @@ namespace zigbee {
             motor::Motor::instance().submit(
               motor::Move {
                 .steps = +1,
-                .end_action = motor::EndAction::COAST,
+                .end_action = motor::EndAction::HOLD,
                 .move_type = motor::MoveType::FREE
               }
             );

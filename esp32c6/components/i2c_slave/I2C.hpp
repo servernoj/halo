@@ -41,6 +41,7 @@ namespace i2c_slave {
       static constexpr uint8_t REG_MOTOR_PROFILE = 0x23;
       static constexpr uint8_t REG_MOTOR_HOLD = 0x24;
       static constexpr uint8_t REG_MOTOR_RELEASE = 0x25;
+      static constexpr uint8_t REG_MOTOR_RESET = 0x26;
 
       // Firmware Info Registers (0x30 - 0x3F)
       static constexpr uint8_t REG_FIRMWARE_INFO = 0x30;

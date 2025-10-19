@@ -11,6 +11,8 @@ namespace motor {
       Move mv;
       MotorCmdId id;
   };
+  const char *moveTypeToName(MoveType move);
+
   class Motor {
     public:
       static Motor &instance() {
@@ -19,6 +21,7 @@ namespace motor {
       }
       esp_err_t init();
       esp_err_t submit(const Move &mv);
+      esp_err_t resetQueue();
       MotorState getState();
 
     private:

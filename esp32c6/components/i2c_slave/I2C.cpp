@@ -4,6 +4,7 @@
 
 #include "Common.hpp"
 #include "I2C.hpp"
+#include "esp_err.h"
 #include "ota_status.hpp"
 #include <Motor.hpp>
 #include <WiFi_DPP.hpp>
@@ -127,7 +128,10 @@ namespace i2c_slave {
                 case I2C::REG_OTA_TRIGGER: {
                   // Write: Trigger OTA update
                   ESP_LOGI(TAG, "Trigger OTA update");
-                  ota::OTA::instance().trigger_ota_update();
+                  esp_err_t ret = ota::OTA::instance().trigger_ota_update();
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
                   break;
                 }
                 case I2C::REG_OTA_RESET_STATUS: {
@@ -136,24 +140,53 @@ namespace i2c_slave {
                   ota::OTA::instance().reset_status();
                   break;
                 }
+                case I2C::REG_MOTOR_RESET: {
+                  // Write: Stop motor
+                  ESP_LOGI(TAG, "Motor task queue reset");
+                  esp_err_t ret = Motor::instance().resetQueue();
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
+                  break;
+                }
                 case I2C::REG_MOTOR_STOP: {
                   // Write: Stop motor
                   ESP_LOGI(TAG, "Motor stop");
-                  Motor::instance().submit(
-                    Move {.end_action = EndAction::COAST, .move_type = MoveType::STOP}
+                  esp_err_t ret = Motor::instance().submit(
+                    Move {
+                      .end_action = EndAction::COAST, //
+                      .move_type = MoveType::STOP
+                    }
                   );
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
                   break;
                 }
                 case I2C::REG_MOTOR_HOLD: {
                   // Write: Hold motor
                   ESP_LOGI(TAG, "Motor hold");
-                  Motor::instance().submit(Move {.move_type = MoveType::HOLD});
+                  esp_err_t ret = Motor::instance().submit(
+                    Move {
+                      .move_type = MoveType::HOLD //
+                    }
+                  );
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
                   break;
                 }
                 case I2C::REG_MOTOR_RELEASE: {
                   // Write: Release motor
                   ESP_LOGI(TAG, "Motor release");
-                  Motor::instance().submit(Move {.move_type = MoveType::RELEASE});
+                  esp_err_t ret = Motor::instance().submit(
+                    Move {
+                      .move_type = MoveType::RELEASE //
+                    }
+                  );
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
                   break;
                 }
                 case I2C::REG_MOTOR_FREE_RUN: {
@@ -163,13 +196,16 @@ namespace i2c_slave {
                     dir = *(int8_t *)(evt.data->buffer + 1) > 0 ? +1 : -1;
                   }
                   ESP_LOGI(TAG, "Motor free run, dir=%d", dir);
-                  Motor::instance().submit(
+                  esp_err_t ret = Motor::instance().submit(
                     Move {
                       .steps = dir,
                       .end_action = EndAction::HOLD,
                       .move_type = MoveType::FREE,
                     }
                   );
+                  if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed: %s", esp_err_to_name(ret));
+                  }
                   break;
                 }
                 case I2C::REG_MOTOR_PROFILE: {
@@ -182,13 +218,17 @@ namespace i2c_slave {
                     for (int i = 0; i < N; i++) {
                       int32_t steps = *(int16_t *)(offset + i * 2);
                       uint32_t delay = *(offset + i * 2 + 1);
-                      Motor::instance().submit(
+                      esp_err_t ret = Motor::instance().submit(
                         Move {
                           .steps = steps,
                           .delay_ms = delay,
                           .move_type = MoveType::FIXED,
                         }
                       );
+                      if (ret != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed step #%d: %s", i + 1, esp_err_to_name(ret));
+                        break;
+                      }
                     }
                   } else {
                     ESP_LOGW(TAG, "Invalid motor profile length: %d bytes", dataLength);

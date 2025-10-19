@@ -8,6 +8,22 @@
 
 namespace motor {
 
+  const char *moveTypeToName(MoveType move) {
+    switch (move) {
+      case MoveType::FREE:
+        return "FREE";
+      case MoveType::FIXED:
+        return "FIXED";
+      case MoveType::STOP:
+        return "STOP";
+      case MoveType::HOLD:
+        return "HOLD";
+      case MoveType::RELEASE:
+        return "RELEASE";
+    }
+    return NULL;
+  };
+
   MotorState Motor::getState() { return motor_state_.load(std::memory_order_acquire); }
 
   esp_err_t Motor::init() {
@@ -49,6 +65,13 @@ namespace motor {
     return ESP_OK;
   }
 
+  esp_err_t Motor::resetQueue() {
+    if (!cmd_q_) {
+      return ESP_ERR_INVALID_STATE;
+    }
+    return xQueueReset(cmd_q_);
+  }
+
   esp_err_t Motor::submit(const Move &mv) {
     bool isIdle = motor_state_.load(std::memory_order_acquire) == MotorState::IDLE;
     if (mv.move_type == MoveType::HOLD) {
@@ -63,6 +86,7 @@ namespace motor {
     if (mv.period_us == 0 || mv.high_us == 0 || mv.high_us >= mv.period_us) {
       return ESP_ERR_INVALID_ARG;
     }
+
     if (mv.move_type == MoveType::STOP) {
       xQueueReset(cmd_q_);
       if (motor_state_.load(std::memory_order_acquire) == MotorState::STARTED) {
@@ -73,6 +97,16 @@ namespace motor {
     QueuedCmd q {mv, next_id_++};
     if (xQueueSend(cmd_q_, &q, 0) != pdTRUE) {
       return ESP_ERR_NO_MEM;
+    }
+    if (mv.move_type == MoveType::FREE) {
+      int dir = mv.steps > 0 ? +1 : -1;
+      submit(
+        Move {
+          .steps = -dir * 1000,
+          .end_action = EndAction::HOLD,
+          .move_type = MoveType::FIXED,
+        }
+      );
     }
     return ESP_OK;
   }
@@ -87,6 +121,7 @@ namespace motor {
       if (xQueueReceive(cmd_q_, &c, portMAX_DELAY) != pdTRUE) {
         continue;
       }
+      ESP_LOGI(TAG, "Processing %s move type", moveTypeToName(c.mv.move_type));
       // -- optional pre-move delay
       if (c.mv.delay_ms) {
         motor_state_.store(MotorState::DELAYED, std::memory_order_release);
