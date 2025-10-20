@@ -8,13 +8,14 @@ router.post(
   '/config',
   validator({
     body: z.object({
-      interval: z.number().int().default(1000)
+      interval: z.number().int().default(0),
+      threshold: z.number().int().positive()
     })
   }),
   async (req, res) => {
-    const { interval } = res.locals.parsed.body
+    const { interval, threshold } = res.locals.parsed.body
     const { worker } = req.app.locals
-    worker.postMessage({ result: interval })
+    worker.postMessage({ result: { interval, threshold } })
     res.sendStatus(200)
   }
 )

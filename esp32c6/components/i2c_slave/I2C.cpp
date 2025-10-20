@@ -99,15 +99,6 @@ namespace i2c_slave {
             readState = ReadState::WAITING_FOR_ADDR; // Reset on new address
             if (evt.data->length > 1) {
               switch (lastAddr) {
-                case REG_I2C_RESET: {
-                  ESP_LOGI(TAG, "I2C module reset requested");
-                  xQueueReset(event_queue_);
-                  readState = ReadState::WAITING_FOR_ADDR;
-                  lastAddr = 0;
-                  dataLength = 0;
-                  memset(dataBuffer, 0, sizeof(dataBuffer));
-                  break;
-                }
                 case REG_DEVICE_RESTART: {
                   ESP_LOGI(TAG, "System restart requested");
                   esp_restart();

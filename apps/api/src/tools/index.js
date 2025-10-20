@@ -30,11 +30,28 @@ const messageProcessor = async ({ target, method, args }) => {
       }
       break
     }
+    case 'relay': {
+      const handler = relay?.[method]
+      if (typeof handler === 'function') {
+        await handler(...args)
+      }
+      break
+    }
     case 'i2c': {
       const handler = bus?.[method]
-      if (typeof handler === 'function') {
-        const result = await handler.call(bus, ...args)
-        return result
+      switch (method) {
+        case '_readI2cBlock': {
+          const b = Buffer.alloc(4)
+          const [addr, reg] = args
+          await bus.readI2cBlock(addr, reg, 4, b)
+          return b
+        }
+        default: {
+          if (typeof handler === 'function') {
+            const result = await handler.call(bus, ...args)
+            return result
+          }
+        }
       }
       break
     }

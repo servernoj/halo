@@ -8,8 +8,3 @@ export const getDeviceID = async () => {
 export const requestRestart = async () => {
   await writeRegister(0xF1, null)
 }
-
-export const resetI2C = async () => {
-  await writeRegister(0xF2, null)
-}
-

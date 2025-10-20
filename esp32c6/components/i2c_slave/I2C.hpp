@@ -52,7 +52,6 @@ namespace i2c_slave {
       // System Registers (0xF0 - 0xFF)
       static constexpr uint8_t REG_DEVICE_ID = 0xF0;
       static constexpr uint8_t REG_DEVICE_RESTART = 0xF1;
-      static constexpr uint8_t REG_I2C_RESET = 0xF2;
 
       I2C() = default;
       I2C(const I2C &) = delete;

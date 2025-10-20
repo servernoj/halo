@@ -11,12 +11,5 @@ router.post(
   }
 )
 
-router.post(
-  '/i2c-reset',
-  async (req, res) => {
-    tools.system.resetI2C()
-    res.sendStatus(200)
-  }
-)
 
 export default router
