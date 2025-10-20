@@ -27,21 +27,22 @@ if (!isMainThread) {
         ? entry.resolve(result)
         : entry.reject(new Error(error))
     } else {
+      // -- Reconfiguration request from controller pir/config
       if (timer) {
         clearInterval(timer)
       }
-      const { interval, threshold } = result
+      const { interval, options } = result
       if (interval > 0) {
         console.log(`Polling interval set to ${interval} ms`)
-        timer = taskLoop(interval, threshold)
+        timer = taskLoop(interval, options)
       } else {
         console.log('Polling stopped')
       }
     }
   })
 
-  const taskLoop = (interval, threshold) => {
-    const handler = handlerFactory(rpcRequest, { threshold })
+  const taskLoop = (interval, options) => {
+    const handler = handlerFactory(rpcRequest, options)
     const timer = setInterval(
       handler,
       interval

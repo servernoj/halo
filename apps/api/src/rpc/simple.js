@@ -69,9 +69,6 @@ export default (rpcRequest, { threshold = 5 }) => {
       status & BITS.ST_DET ? 1 : 0,
       status & BITS.ST_AVAILABLE ? 1 : 0
     ]
-    if (cnt) {
-      console.log(cnt)
-    }
     if (isDet && isDetPrev) {
       cnt++
     }
@@ -86,8 +83,8 @@ export default (rpcRequest, { threshold = 5 }) => {
           }
         )
       }
+      console.log('+++', cnt)
       cnt = 0
-      console.log('+++')
     }
     if (isAvailable) {
       await writeByte(REGS.STATUS, status & (~BITS.CLEAR))
