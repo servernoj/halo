@@ -5,6 +5,9 @@
 
 namespace motor {
 
+  static constexpr int STEPS_PER_REVOLUTION = 200;
+  static constexpr uint32_t START_PERIOD_US = 4096;
+
   typedef uint32_t MotorCmdId;
   typedef struct {
       gpio_num_t stby, en;
@@ -36,9 +39,8 @@ namespace motor {
 
   struct Move {
     public:
-      int32_t steps {0}; // +CW, -CCW
-      uint32_t period_us {400}; // >0
-      uint32_t high_us {50}; // >0 and < period_us
+      int32_t degrees {0}; // +CW, -CCW in degrees
+      int32_t rpm {0}; // target RPM
       uint32_t delay_ms {0}; // pre-exec delay after dequeue
       EndAction end_action {EndAction::COAST};
       MoveType move_type {MoveType::FIXED};

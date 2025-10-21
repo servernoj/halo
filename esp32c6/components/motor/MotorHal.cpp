@@ -1,11 +1,38 @@
+#include <cmath>
 #include <esp_check.h>
 #include <esp_err.h>
 
 #include "MotorHal.hpp"
 #include "driver/gpio.h"
+#include "driver/pulse_cnt.h"
+#include "esp_log.h"
 #include "hal/gpio_types.h"
+#include "motor_profiles.h"
 
 namespace motor {
+
+  uint16_t getMicrostepFactor(StepMode mode) {
+    switch (mode) {
+      case StepMode::FixedFull:
+        return 1;
+      case StepMode::FixedHalf:
+        return 2;
+      case StepMode::FixedQuarter:
+        return 4;
+      case StepMode::FixedEighth:
+        return 8;
+      case StepMode::FixedSixteenth:
+        return 16;
+      case StepMode::FixedThirtySecond:
+        return 32;
+      case StepMode::FixedSixtyFourth:
+        return 64;
+      case StepMode::FixedOneTwentyEighth:
+        return 128;
+      default:
+        return 1;
+    }
+  }
 
   static bool IRAM_ATTR
   pcnt_on_reach_cb(pcnt_unit_handle_t pcnt_, const pcnt_watch_event_data_t *ed, void *ctx) {
@@ -134,8 +161,8 @@ namespace motor {
     return ESP_OK;
   }
 
-  esp_err_t MotorHal::setupDirection(int32_t steps) {
-    uint8_t direction = (steps >= 0) ? motor_cfg_.dir_cw_level : !motor_cfg_.dir_cw_level;
+  esp_err_t MotorHal::setupDirection(int32_t degrees) {
+    uint8_t direction = (degrees >= 0) ? motor_cfg_.dir_cw_level : !motor_cfg_.dir_cw_level;
     ESP_RETURN_ON_ERROR(
       gpio_set_level(motor_cfg_.pins.m3, direction), //
       MotorHal::TAG, //
@@ -208,6 +235,7 @@ namespace motor {
     if (duty_ticks >= period_ticks) {
       duty_ticks = period_ticks - 1;
     }
+
     ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, duty_ticks));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));
     return ESP_OK;
@@ -229,15 +257,77 @@ namespace motor {
 
   esp_err_t MotorHal::startMove(Move &mv, MotorCmdId) {
     last_move_ = mv;
+    uint16_t microstep_factor = getMicrostepFactor(motor_cfg_.step_mode);
     ESP_RETURN_ON_ERROR(
-      setupDirection(mv.steps), //
+      setupDirection(mv.degrees), //
       MotorHal::TAG, //
       "setupDirection failed"
     );
 
     if (mv.move_type == MoveType::FIXED) {
+      // Target & covered times
+      uint64_t target_time_us = (60ULL * 1000000ULL) / mv.rpm;
+      uint64_t covered_time_us = 0;
+
+      // Profile
+      const float *profile = PROFILE_LINEAR;
+      size_t M = sizeof(PROFILE_LINEAR) / sizeof(PROFILE_LINEAR[0]);
+      if (!segments_.capacity()) {
+        segments_.reserve(M);
+      }
+
+      // Compute sum of gains
+      float sum_gains = 0.0f;
+      for (size_t i = 0; i < M; i++) {
+        sum_gains += profile[i];
+      }
+
+      // Compute N from target time
+      uint64_t temp = microstep_factor * target_time_us / START_PERIOD_US;
+      float N_float = static_cast<float>(temp) / sum_gains;
+      uint32_t N = static_cast<int>(std::floor(N_float));
+      if (N < 10) {
+        // -- Every point of the profile has to be played long enough
+        ESP_LOGE(TAG, "Too low length of each profile segment: %d", N);
+        return ESP_ERR_INVALID_ARG;
+      }
+
+      // Build segments
+      segments_.clear();
+      for (size_t i = 0; i < M; i++) {
+        SegmentData segment = {
+          .steps = N, //
+          .period_us = static_cast<uint32_t>(std::round(START_PERIOD_US * profile[i]))
+        };
+        segments_.push_back(segment);
+        covered_time_us += segment.steps * segment.period_us;
+      }
+
+      // Handle remaining time
+      uint64_t remaining_us = target_time_us > covered_time_us ? target_time_us - covered_time_us : 0;
+      if (remaining_us > 0) {
+        auto last_segment = segments_.back();
+        uint32_t extra_steps = remaining_us / last_segment.period_us;
+        last_segment.steps += extra_steps;
+      }
+      current_segment_index_ = 0;
+      auto current_segment = segments_.at(current_segment_index_);
+
+      // Set initial LEDC
       ESP_RETURN_ON_ERROR(
-        setupPCNT(mv.steps), //
+        setupLEDC(
+          current_segment.period_us,
+          current_segment.period_us / 8 //
+        ),
+        MotorHal::TAG, //
+        "setupLEDC failed"
+      );
+
+      // Set PCNT for first segment
+      ESP_RETURN_ON_ERROR(
+        setupPCNT(
+          current_segment.steps //
+        ),
         MotorHal::TAG, //
         "setupPCNT failed"
       );
@@ -248,12 +338,15 @@ namespace motor {
         MotorHal::TAG, //
         "setupStopper failed"
       );
+      // Adjust period based on step_mode: 400us for 1/8, scaled for others
+      uint32_t period_us = START_PERIOD_US / microstep_factor;
+      uint32_t high_us = period_us / 8;
+      ESP_RETURN_ON_ERROR(
+        setupLEDC(period_us, high_us), //
+        MotorHal::TAG, //
+        "ledc setup failed"
+      );
     }
-    ESP_RETURN_ON_ERROR(
-      setupLEDC(mv.period_us, mv.high_us), //
-      MotorHal::TAG, //
-      "ledc setup failed"
-    );
     gpio_set_level(motor_cfg_.pins.en, motor_cfg_.en_active_level);
     return ESP_OK;
   }
@@ -276,10 +369,10 @@ namespace motor {
       ESP_ERROR_CHECK(gpio_set_level(motor_cfg_.pins.en, !motor_cfg_.en_active_level));
     }
     if (last_move_.move_type == MoveType::FIXED) {
-      int lastWatchPoint = last_move_.steps > 0 ? last_move_.steps : -last_move_.steps;
       ESP_ERROR_CHECK(pcnt_unit_stop(pcnt_));
       ESP_ERROR_CHECK(pcnt_unit_disable(pcnt_));
-      ESP_ERROR_CHECK(pcnt_unit_remove_watch_point(pcnt_, lastWatchPoint));
+      // Remove the last watch point
+      ESP_ERROR_CHECK(pcnt_unit_remove_watch_point(pcnt_, segments_.back().steps));
     }
     if (last_move_.move_type == MoveType::FREE) {
       ESP_ERROR_CHECK(gpio_intr_disable(motor_cfg_.pins.stop));
@@ -289,6 +382,32 @@ namespace motor {
   }
 
   void IRAM_ATTR MotorHal::onStopISR() {
+    if (last_move_.move_type == MoveType::FIXED) {
+      auto finished_segment = segments_.at(current_segment_index_++);
+      if (current_segment_index_ < segments_.size()) {
+        auto current_segment = segments_.at(current_segment_index_);
+        // Set new period for this segment
+        ledc_set_freq(
+          ledc_mode_, //
+          ledc_timer_, //
+          1000000 / current_segment.period_us //
+        );
+        ledc_set_duty(
+          ledc_mode_, //
+          ledc_channel_, //
+          current_segment.period_us / 8 //
+        );
+        ledc_update_duty(ledc_mode_, ledc_channel_);
+        // Set next watch
+        pcnt_unit_stop(pcnt_);
+        pcnt_unit_clear_count(pcnt_);
+        pcnt_unit_remove_watch_point(pcnt_, finished_segment.steps);
+        pcnt_unit_add_watch_point(pcnt_, current_segment.steps);
+        pcnt_unit_start(pcnt_);
+        // Important: we don't stop here, that's why preemptive return below
+        return;
+      }
+    }
     ledc_timer_pause(ledc_mode_, ledc_timer_);
     BaseType_t hp = pdFALSE;
     if (task_) {

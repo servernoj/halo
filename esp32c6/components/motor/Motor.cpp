@@ -83,7 +83,7 @@ namespace motor {
     if (!cmd_q_) {
       return ESP_ERR_INVALID_STATE;
     }
-    if (mv.period_us == 0 || mv.high_us == 0 || mv.high_us >= mv.period_us) {
+    if (mv.rpm <= 0) {
       return ESP_ERR_INVALID_ARG;
     }
 
@@ -99,10 +99,11 @@ namespace motor {
       return ESP_ERR_NO_MEM;
     }
     if (mv.move_type == MoveType::FREE) {
-      int dir = mv.steps > 0 ? +1 : -1;
+      int dir = mv.degrees > 0 ? +1 : -1;
       submit(
         Move {
-          .steps = -dir * 1000,
+          .degrees = -dir * 50,
+          .rpm = mv.rpm,
           .end_action = EndAction::HOLD,
           .move_type = MoveType::FIXED,
         }

@@ -240,7 +240,7 @@ namespace zigbee {
               = message->attribute.data.value ? *(bool *)message->attribute.data.value : light_state;
             motor::Motor::instance().submit(
               motor::Move {
-                .steps = +1,
+                .degrees = +1,
                 .end_action = motor::EndAction::HOLD,
                 .move_type = motor::MoveType::FREE
               }
