@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <cmath>
 #include <esp_check.h>
 #include <esp_err.h>
+#include <numeric>
 
 #include "MotorHal.hpp"
 #include "driver/gpio.h"
@@ -266,71 +268,88 @@ namespace motor {
 
     if (mv.move_type == MoveType::FIXED) {
       // Target & covered times
-      uint64_t target_time_us = (60ULL * 1000000ULL) / mv.rpm;
-      uint64_t covered_time_us = 0;
-
+      uint32_t total_steps = mv.degrees * STEPS_PER_REVOLUTION * microstep_factor / 360;
+      uint64_t total_time_us = mv.degrees * 1000000 / mv.rpm / 6;
+      ESP_LOGI(TAG, "Totals: steps = %d, time_us = %d", total_steps, total_time_us);
       // Profile
-      const float *profile = PROFILE_LINEAR;
-      size_t M = sizeof(PROFILE_LINEAR) / sizeof(PROFILE_LINEAR[0]);
+      auto &raw_profile = PROFILE_LINEAR;
+      std::vector<float> profile;
+      profile.reserve(raw_profile.size());
+      float scale = raw_profile.front();
+      std::transform(
+        raw_profile.begin(), //
+        raw_profile.end(), //
+        std::back_inserter(profile), //
+        [scale](float x) { return x / scale; }
+      );
       if (!segments_.capacity()) {
-        segments_.reserve(M);
+        segments_.reserve(profile.size());
       }
-
-      // Compute sum of gains
-      float sum_gains = 0.0f;
-      for (size_t i = 0; i < M; i++) {
-        sum_gains += profile[i];
-      }
-
-      // Compute N from target time
-      uint64_t temp = microstep_factor * target_time_us / START_PERIOD_US;
-      float N_float = static_cast<float>(temp) / sum_gains;
-      uint32_t N = static_cast<int>(std::floor(N_float));
-      if (N < 10) {
-        // -- Every point of the profile has to be played long enough
-        ESP_LOGE(TAG, "Too low length of each profile segment: %d", N);
-        return ESP_ERR_INVALID_ARG;
-      }
-
-      // Build segments
+      uint32_t time_segment = total_time_us / profile.size();
+      ESP_LOGI(TAG, "Segment time_us: %d", time_segment);
+      ESP_LOGI(TAG, "Microstep factor: %d", microstep_factor);
+      float S0_f = (float)time_segment * microstep_factor / START_PERIOD_US;
+      // -- 1st segment is configured with "safe to start" period_us equivalent to START_PERIOD_US
       segments_.clear();
-      for (size_t i = 0; i < M; i++) {
-        SegmentData segment = {
-          .steps = N, //
-          .period_us = static_cast<uint32_t>(std::round(START_PERIOD_US * profile[i]))
-        };
-        segments_.push_back(segment);
-        covered_time_us += segment.steps * segment.period_us;
+      segments_.push_back(
+        SegmentData {
+          .steps = static_cast<uint32_t>(std::round(S0_f)),
+          .period_us = START_PERIOD_US / microstep_factor
+        }
+      );
+      if (segments_.back().steps >= total_steps) {
+        segments_.back().steps = total_steps;
+        ESP_LOGW(TAG, "Forced to use a single-segment ramp");
+      } else {
+        float inv_sum = std::accumulate(
+          profile.begin() + 1, //
+          profile.end(), //
+          0, //
+          [](float acc, float x) { return acc + 1 / x; }
+        );
+        float alpha = (S0_f * inv_sum) / (total_steps - S0_f);
+        ESP_LOGI(TAG, "Inverted sum: %f, Alpha: %f", inv_sum, alpha);
+        std::transform(
+          profile.begin() + 1, profile.end(), std::back_inserter(segments_),
+          [microstep_factor, alpha, time_segment](float g_i) {
+            uint32_t T_i = static_cast<uint32_t>(
+              std::round((float)START_PERIOD_US / microstep_factor * g_i * alpha) //
+            );
+            return SegmentData {
+              .steps = time_segment / T_i, //
+              .period_us = T_i
+            };
+          }
+        );
+      }
+      ESP_LOGI(TAG, "Profile:");
+      for (float p : profile) {
+        ESP_LOGI(TAG, "%5.2f", p);
+      }
+      ESP_LOGI(TAG, "Segments:");
+      for (SegmentData s : segments_) {
+        ESP_LOGI(TAG, "{ .period_us = %d, .steps = %d }", s.period_us, s.steps);
       }
 
-      // Handle remaining time
-      uint64_t remaining_us = target_time_us > covered_time_us ? target_time_us - covered_time_us : 0;
-      if (remaining_us > 0) {
-        auto last_segment = segments_.back();
-        uint32_t extra_steps = remaining_us / last_segment.period_us;
-        last_segment.steps += extra_steps;
-      }
-      current_segment_index_ = 0;
-      auto current_segment = segments_.at(current_segment_index_);
+      // auto current_segment = segments_.front();
+      // // Set initial LEDC
+      // ESP_RETURN_ON_ERROR(
+      //   setupLEDC(
+      //     current_segment.period_us,
+      //     current_segment.period_us / 8 //
+      //   ),
+      //   MotorHal::TAG, //
+      //   "setupLEDC failed"
+      // );
 
-      // Set initial LEDC
-      ESP_RETURN_ON_ERROR(
-        setupLEDC(
-          current_segment.period_us,
-          current_segment.period_us / 8 //
-        ),
-        MotorHal::TAG, //
-        "setupLEDC failed"
-      );
-
-      // Set PCNT for first segment
-      ESP_RETURN_ON_ERROR(
-        setupPCNT(
-          current_segment.steps //
-        ),
-        MotorHal::TAG, //
-        "setupPCNT failed"
-      );
+      // // Set PCNT for first segment
+      // ESP_RETURN_ON_ERROR(
+      //   setupPCNT(
+      //     current_segment.steps //
+      //   ),
+      //   MotorHal::TAG, //
+      //   "setupPCNT failed"
+      // );
     }
     if (mv.move_type == MoveType::FREE) {
       ESP_RETURN_ON_ERROR(
@@ -363,6 +382,7 @@ namespace motor {
   }
 
   esp_err_t MotorHal::stopMove() {
+    ESP_ERROR_CHECK(ledc_timer_pause(ledc_mode_, ledc_timer_));
     ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, 0));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));
     if (last_move_.end_action == EndAction::COAST) {
@@ -381,34 +401,36 @@ namespace motor {
     return ESP_OK;
   }
 
-  void IRAM_ATTR MotorHal::onStopISR() {
-    if (last_move_.move_type == MoveType::FIXED) {
-      auto finished_segment = segments_.at(current_segment_index_++);
-      if (current_segment_index_ < segments_.size()) {
-        auto current_segment = segments_.at(current_segment_index_);
-        // Set new period for this segment
-        ledc_set_freq(
-          ledc_mode_, //
-          ledc_timer_, //
-          1000000 / current_segment.period_us //
-        );
-        ledc_set_duty(
-          ledc_mode_, //
-          ledc_channel_, //
-          current_segment.period_us / 8 //
-        );
-        ledc_update_duty(ledc_mode_, ledc_channel_);
-        // Set next watch
-        pcnt_unit_stop(pcnt_);
-        pcnt_unit_clear_count(pcnt_);
-        pcnt_unit_remove_watch_point(pcnt_, finished_segment.steps);
-        pcnt_unit_add_watch_point(pcnt_, current_segment.steps);
-        pcnt_unit_start(pcnt_);
-        // Important: we don't stop here, that's why preemptive return below
-        return;
-      }
+  /**
+   * @return isDone
+   */
+  bool MotorHal::nextSegment() {
+    auto finished_segment = segments_.at(current_segment_index_++);
+    if (current_segment_index_ < segments_.size()) {
+      auto current_segment = segments_.at(current_segment_index_);
+      // Set new period for this segment
+      ledc_set_freq(
+        ledc_mode_, //
+        ledc_timer_, //
+        1000000 / current_segment.period_us //
+      );
+      ledc_set_duty(
+        ledc_mode_, //
+        ledc_channel_, //
+        current_segment.period_us / 8 //
+      );
+      ledc_update_duty(ledc_mode_, ledc_channel_);
+      // Set next watch
+      pcnt_unit_stop(pcnt_);
+      pcnt_unit_remove_watch_point(pcnt_, finished_segment.steps);
+      pcnt_unit_add_watch_point(pcnt_, current_segment.steps);
+      pcnt_unit_start(pcnt_);
+      return false;
     }
-    ledc_timer_pause(ledc_mode_, ledc_timer_);
+    return true;
+  }
+
+  void IRAM_ATTR MotorHal::onStopISR() {
     BaseType_t hp = pdFALSE;
     if (task_) {
       vTaskNotifyGiveFromISR(task_, &hp);

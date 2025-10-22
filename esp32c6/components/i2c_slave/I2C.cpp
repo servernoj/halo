@@ -189,7 +189,7 @@ namespace i2c_slave {
                   ESP_LOGI(TAG, "Motor free run, dir=%d", dir);
                   esp_err_t ret = Motor::instance().submit(
                     Move {
-                      .steps = dir,
+                      .degrees = dir,
                       .end_action = EndAction::HOLD,
                       .move_type = MoveType::FREE,
                     }
@@ -207,11 +207,11 @@ namespace i2c_slave {
                     uint16_t *offset = (uint16_t *)(evt.data->buffer + 1);
                     ESP_LOGI(TAG, "Motor profile: %d moves", N);
                     for (int i = 0; i < N; i++) {
-                      int32_t steps = *(int16_t *)(offset + i * 2);
+                      int32_t degrees = *(int16_t *)(offset + i * 2);
                       uint32_t delay = *(offset + i * 2 + 1);
                       esp_err_t ret = Motor::instance().submit(
                         Move {
-                          .steps = steps,
+                          .degrees = degrees,
                           .delay_ms = delay,
                           .move_type = MoveType::FIXED,
                         }

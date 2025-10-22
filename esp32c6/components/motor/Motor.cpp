@@ -33,7 +33,7 @@ namespace motor {
     }
     MotorCfg motor_cfg {
       .en_active_level = 1,
-      .step_mode = StepMode::FixedEighth,
+      .step_mode = StepMode::FixedFull,
       .dir_cw_level = 1,
       .pins = {
         .stby = GPIO_NUM_5,
@@ -133,16 +133,20 @@ namespace motor {
         motor_state_.store(MotorState::ERRORED, std::memory_order_release);
         continue;
       }
-      // -- clear up possible "stale" notifications
-      ulTaskNotifyTake(pdTRUE, 0);
-      // -- wait for the doorbell indicating end of current move
+      // -- wait for the end of current move
       motor_state_.store(MotorState::STARTED, std::memory_order_release);
-      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+      continue;
+
+      for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (c.mv.move_type != MoveType::FIXED || hal_->nextSegment()) {
+          break;
+        }
+      }
       if (hal_->stopMove() != ESP_OK) {
         motor_state_.store(MotorState::ERRORED, std::memory_order_release);
       };
     }
   }
-
 } // namespace motor

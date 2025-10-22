@@ -40,7 +40,7 @@ namespace motor {
   struct Move {
     public:
       int32_t degrees {0}; // +CW, -CCW in degrees
-      int32_t rpm {0}; // target RPM
+      int32_t rpm {60}; // target RPM
       uint32_t delay_ms {0}; // pre-exec delay after dequeue
       EndAction end_action {EndAction::COAST};
       MoveType move_type {MoveType::FIXED};

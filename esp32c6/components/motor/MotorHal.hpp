@@ -18,6 +18,7 @@ namespace motor {
       esp_err_t init(MotorCfg &hw);
       esp_err_t startMove(Move &mv, MotorCmdId id);
       esp_err_t stopMove();
+      bool nextSegment();
       esp_err_t holdOrRelease(bool doHold);
       void registerTaskHandle(TaskHandle_t h) { task_ = h; }
       void onStopISR();

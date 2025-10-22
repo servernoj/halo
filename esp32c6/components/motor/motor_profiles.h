@@ -3,23 +3,12 @@
 // Profiles start at 1.0 and decrease to allow smooth startup
 
 #pragma once
+#include <vector>
 
 // Linear profile: 16 points from 1.0 to 0.25
-const float PROFILE_LINEAR[16] = {
-  1.0f, // 4096us
-  0.9375f, // ~3839us
-  0.875f, // ~3584us
-  0.8125f, // ~3328us
-  0.75f, // ~3072us
-  0.6875f, // ~2816us
-  0.625f, // ~2560us
-  0.5625f, // ~2304us
-  0.5f, // ~2048us
-  0.4375f, // ~1792us
-  0.375f, // ~1536us
-  0.3125f, // ~1280us
-  0.25f, // ~1024us
-  0.25f, // ~1024us
-  0.25f, // ~1024us
-  0.25f // ~1024us
+const std::vector<float> PROFILE_LINEAR = { //
+  1,   0.95, 0.9, 0.85, //
+  0.8, 0.75, 0.7, 0.65, //
+  0.6, 0.55, 0.5, 0.45, //
+  0.4, 0.35, 0.3, 0.25
 };
