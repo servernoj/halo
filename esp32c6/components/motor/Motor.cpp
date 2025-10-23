@@ -33,7 +33,7 @@ namespace motor {
     }
     MotorCfg motor_cfg {
       .en_active_level = 1,
-      .step_mode = StepMode::FixedFull,
+      .step_mode = StepMode::FixedQuarter,
       .dir_cw_level = 1,
       .pins = {
         .stby = GPIO_NUM_5,
@@ -103,8 +103,8 @@ namespace motor {
       int dir = mv.degrees > 0 ? +1 : -1;
       submit(
         Move {
-          .degrees = -dir * 50,
-          .rpm = mv.rpm,
+          .degrees = -dir * 180,
+          .rpm = 120,
           .end_action = EndAction::HOLD,
           .move_type = MoveType::FIXED,
         }
@@ -137,7 +137,6 @@ namespace motor {
       }
       // -- wait for the end of current move
       motor_state_.store(MotorState::STARTED, std::memory_order_release);
-
       for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if ( //
@@ -148,6 +147,7 @@ namespace motor {
           break;
         }
       }
+      ESP_LOGW(TAG, "Broke away");
       if (hal_->stopMove() != ESP_OK) {
         motor_state_.store(MotorState::ERRORED, std::memory_order_release);
       };

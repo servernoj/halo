@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "MovePlanner.hpp"
+#include "esp_log.h"
 
 #define BETA_LO -10.0
 #define BETA_HI +10.0
@@ -10,10 +11,11 @@
 #define TOLERANCE 1e-5
 
 namespace motor {
-  MovePlanner::MovePlanner(uint32_t base_time_us, uint32_t total_time_us, uint32_t total_steps)
-      : base_time_us(base_time_us), total_time_us(total_time_us), total_steps(total_steps), lo(BETA_LO),
+  MovePlanner::MovePlanner(uint32_t base_time_us, uint32_t total_time_us, int32_t steps)
+      : base_time_us(base_time_us), total_time_us(total_time_us), total_steps(std::abs(steps)), lo(BETA_LO),
         hi(BETA_HI) {
     float scale = profile_.front();
+    dir = steps > 0 ? +1 : -1;
     std::transform(
       profile_.begin(), //
       profile_.end(), //
@@ -22,11 +24,19 @@ namespace motor {
     );
   }
   bool MovePlanner::isFeasible() {
+    ESP_LOGI(
+      TAG, "tt = %u, ts = %u, pb = %f, pf = %f, bt = %u", total_time_us, total_steps, profile.back(),
+      profile.front(), base_time_us
+    );
     bool isTotalTimeLargeEnough = total_time_us >= total_steps * profile.back() * base_time_us;
     bool isTotalTimeSmallEnough = total_time_us <= total_steps * profile.front() * base_time_us;
-    int fLo = (int)estimateSteps(lo) - total_steps;
-    int fHi = (int)estimateSteps(hi) - total_steps;
+    double fLo = estimateSteps(lo) - total_steps;
+    double fHi = estimateSteps(hi) - total_steps;
     bool canConverge = fLo * fHi < 0;
+    ESP_LOGI(
+      TAG, "tle = %d, tse = %d, flo = %f, fhi = %f, cc = %d", isTotalTimeLargeEnough, isTotalTimeSmallEnough,
+      fLo, fHi, canConverge
+    );
     return isTotalTimeLargeEnough && isTotalTimeSmallEnough && canConverge;
   }
   double MovePlanner::estimateSteps(double beta) {
@@ -75,7 +85,7 @@ namespace motor {
       double segment_time_us = total_time_us * w.at(i) / W;
       uint32_t period_us = std::round(base_time_us * profile.at(i));
       uint32_t steps = std::round(segment_time_us / period_us);
-      segments.at(i) = SegmentData {.steps = steps, .period_us = period_us};
+      segments.at(i) = SegmentData {.steps = (int)steps * dir, .period_us = period_us};
     }
     return segments;
   }

@@ -16,7 +16,7 @@ namespace motor {
   } motor_pins_t;
 
   struct SegmentData {
-      uint32_t steps;
+      int32_t steps;
       uint32_t period_us;
   };
 
@@ -45,7 +45,7 @@ namespace motor {
   struct Move {
     public:
       int32_t degrees {0}; // +CW, -CCW in degrees
-      int32_t rpm {120}; // target RPM
+      uint32_t rpm {120}; // target RPM
       uint32_t delay_ms {0}; // pre-exec delay after dequeue
       EndAction end_action {EndAction::COAST};
       MoveType move_type {MoveType::FIXED};

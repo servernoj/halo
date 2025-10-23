@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <driver/gpio.h>
 #include <driver/pulse_cnt.h>
 #include <esp_check.h>
@@ -170,14 +171,14 @@ namespace motor {
   }
 
   esp_err_t MotorHal::setupPCNT(int steps) {
-    int target = (steps >= 0) ? (int)steps : (int)(-steps);
+
     ESP_RETURN_ON_ERROR(
       pcnt_unit_clear_count(pcnt_), //
       MotorHal::TAG, //
       "pcnt_unit_clear_count failed"
     );
     ESP_RETURN_ON_ERROR(
-      pcnt_unit_add_watch_point(pcnt_, target), //
+      pcnt_unit_add_watch_point(pcnt_, std::abs(steps)), //
       MotorHal::TAG, //
       "pcnt_unit_add_watch_point failed"
     );
@@ -256,21 +257,22 @@ namespace motor {
 
     if (mv.move_type == MoveType::FIXED) {
       // Target & covered times
-      uint32_t total_steps = mv.degrees * STEPS_PER_REVOLUTION * microstep_factor / 360;
-      uint64_t total_time_us = mv.degrees * 1000000 / mv.rpm / 6;
+      int32_t steps = mv.degrees * STEPS_PER_REVOLUTION * microstep_factor / 360;
+      uint64_t degrees = mv.degrees > 0 ? mv.degrees : -mv.degrees;
+      int64_t total_time_us = degrees * 1000000 / mv.rpm / 6;
       uint32_t base_time = START_PERIOD_US / microstep_factor;
-      ESP_LOGI(TAG, "Totals: steps = %d, time_us = %d", total_steps, total_time_us);
+      ESP_LOGI(TAG, "Totals: steps = %d, time_us = %u", steps, total_time_us);
 
-      MovePlanner planner(base_time, total_time_us, total_steps);
+      MovePlanner planner(base_time, total_time_us, steps);
       if (!planner.isFeasible()) {
         ESP_LOGE(TAG, "Too tight constraints");
         return ESP_ERR_INVALID_ARG;
       };
       segments_ = planner.generateSegments();
-      ESP_LOGI(TAG, "Segments:");
-      for (SegmentData s : segments_) {
-        ESP_LOGI(TAG, "{ .period_us = %d, .steps = %d }", s.period_us, s.steps);
-      }
+      // ESP_LOGI(TAG, "Segments:");
+      // for (SegmentData s : segments_) {
+      //   ESP_LOGI(TAG, "{ .period_us = %u, .steps = %d }", s.period_us, s.steps);
+      // }
       current_segment_index_ = 0;
       auto current_segment = segments_.at(current_segment_index_);
       // Set initial LEDC
@@ -327,7 +329,7 @@ namespace motor {
       ESP_ERROR_CHECK(pcnt_unit_stop(pcnt_));
       ESP_ERROR_CHECK(pcnt_unit_disable(pcnt_));
       // Remove the last watch point
-      ESP_ERROR_CHECK(pcnt_unit_remove_watch_point(pcnt_, segments_.back().steps));
+      ESP_ERROR_CHECK(pcnt_unit_remove_watch_point(pcnt_, std::abs(segments_.back().steps)));
     }
     if (last_move_.move_type == MoveType::FREE) {
       ESP_ERROR_CHECK(gpio_intr_disable(motor_cfg_.pins.stop));
@@ -347,8 +349,9 @@ namespace motor {
       // --
       pcnt_unit_stop(pcnt_);
       // --
-      pcnt_unit_remove_watch_point(pcnt_, finished_segment.steps);
-      pcnt_unit_add_watch_point(pcnt_, current_segment.steps);
+      pcnt_unit_clear_count(pcnt_);
+      pcnt_unit_remove_watch_point(pcnt_, std::abs(finished_segment.steps));
+      pcnt_unit_add_watch_point(pcnt_, std::abs(current_segment.steps));
       ledc_set_freq(ledc_mode_, ledc_timer_, 1000000 / current_segment.period_us);
       // --
       pcnt_unit_start(pcnt_);

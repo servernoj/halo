@@ -202,17 +202,20 @@ namespace i2c_slave {
                 case I2C::REG_MOTOR_PROFILE: {
                   // Write: Motor profile (array of {int16 steps, uint16 delay})
                   size_t dataLength = evt.data->length - 1;
-                  if (dataLength % 4 == 0 && dataLength <= 60) {
-                    int N = dataLength / 4;
+                  if (dataLength % 6 == 0 && dataLength <= 60) {
+                    int N = dataLength / 6;
                     uint16_t *offset = (uint16_t *)(evt.data->buffer + 1);
                     ESP_LOGI(TAG, "Motor profile: %d moves", N);
                     for (int i = 0; i < N; i++) {
-                      int32_t degrees = *(int16_t *)(offset + i * 2);
-                      uint32_t delay = *(offset + i * 2 + 1);
+                      int32_t degrees = *(int16_t *)(offset + i * 3);
+                      uint32_t delay = *(offset + i * 3 + 1);
+                      uint32_t rpm = *(offset + i * 3 + 2);
                       esp_err_t ret = Motor::instance().submit(
                         Move {
                           .degrees = degrees,
+                          .rpm = rpm,
                           .delay_ms = delay,
+                          .end_action = EndAction::COAST,
                           .move_type = MoveType::FIXED,
                         }
                       );

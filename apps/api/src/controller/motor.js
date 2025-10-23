@@ -9,17 +9,19 @@ router.post(
   '/profile',
   validator({
     body: z.object({
+      repeat: z.number().positive().int().default(1),
       profile: z.array(
         z.object({
-          steps: z.number().int(),
-          delay: z.number().nonnegative()
+          degrees: z.number().int(),
+          delay: z.number().nonnegative().default(0),
+          rpm: z.number().int().nonnegative().min(60)
         })
       )
     })
   }),
   async (req, res) => {
-    const { profile } = res.locals.parsed.body
-    await tools.motor.runProfile(profile)
+    const { profile, repeat } = res.locals.parsed.body
+    await tools.motor.runProfile(profile, repeat)
     res.sendStatus(200)
   }
 )

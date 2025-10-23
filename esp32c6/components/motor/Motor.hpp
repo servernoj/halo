@@ -28,7 +28,7 @@ namespace motor {
       static void taskTrampoline(void *arg);
       bool initialized_ = false;
       static constexpr const char *TAG = "Motor";
-      static constexpr int kQueueDepth = 8;
+      static constexpr int kQueueDepth = 16;
       std::atomic<MotorState> motor_state_ {MotorState::IDLE};
       void taskLoop();
       std::unique_ptr<MotorHal> hal_;
