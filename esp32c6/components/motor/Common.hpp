@@ -15,6 +15,11 @@ namespace motor {
       gpio_num_t stop;
   } motor_pins_t;
 
+  struct SegmentData {
+      uint32_t steps;
+      uint32_t period_us;
+  };
+
   enum class StepMode : uint8_t {
     FixedFull = 0b1000,
     FixedHalf = 0b1001,
@@ -40,7 +45,7 @@ namespace motor {
   struct Move {
     public:
       int32_t degrees {0}; // +CW, -CCW in degrees
-      int32_t rpm {60}; // target RPM
+      int32_t rpm {120}; // target RPM
       uint32_t delay_ms {0}; // pre-exec delay after dequeue
       EndAction end_action {EndAction::COAST};
       MoveType move_type {MoveType::FIXED};

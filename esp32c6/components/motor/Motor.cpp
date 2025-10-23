@@ -90,6 +90,7 @@ namespace motor {
     if (mv.move_type == MoveType::STOP) {
       xQueueReset(cmd_q_);
       if (motor_state_.load(std::memory_order_acquire) == MotorState::STARTED) {
+        stop_requested_ = true;
         xTaskNotifyGive(task_);
       }
       return ESP_OK;
@@ -109,6 +110,7 @@ namespace motor {
         }
       );
     }
+    stop_requested_ = false;
     return ESP_OK;
   }
 
@@ -136,11 +138,13 @@ namespace motor {
       // -- wait for the end of current move
       motor_state_.store(MotorState::STARTED, std::memory_order_release);
 
-      continue;
-
       for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        if (c.mv.move_type != MoveType::FIXED || hal_->nextSegment()) {
+        if ( //
+          stop_requested_ || 
+          c.mv.move_type != MoveType::FIXED || 
+          hal_->nextSegment()
+        ) {
           break;
         }
       }

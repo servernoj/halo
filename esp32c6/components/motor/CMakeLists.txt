@@ -2,6 +2,7 @@ idf_component_register(
   SRCS
     "Motor.cpp"
     "MotorHal.cpp"
+    "MovePlanner.cpp"
   INCLUDE_DIRS
     "."            
   REQUIRES

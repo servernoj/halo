@@ -1,15 +1,11 @@
-#include <algorithm>
-#include <cmath>
+#include <driver/gpio.h>
+#include <driver/pulse_cnt.h>
 #include <esp_check.h>
 #include <esp_err.h>
-#include <numeric>
+#include <esp_log.h>
 
 #include "MotorHal.hpp"
-#include "driver/gpio.h"
-#include "driver/pulse_cnt.h"
-#include "esp_log.h"
-#include "hal/gpio_types.h"
-#include "motor_profiles.h"
+#include "MovePlanner.hpp"
 
 namespace motor {
 
@@ -198,8 +194,8 @@ namespace motor {
     return ESP_OK;
   }
 
-  esp_err_t MotorHal::setupLEDC(uint32_t period_us, uint32_t high_us) {
-    if (period_us == 0 || high_us == 0 || high_us >= period_us) {
+  esp_err_t MotorHal::setupLEDC(uint32_t period_us) {
+    if (period_us == 0) {
       return ESP_ERR_INVALID_ARG;
     }
     const uint32_t freq_hz = 1000000UL / period_us;
@@ -229,16 +225,8 @@ namespace motor {
       "ledc_channel_config failed"
     );
     // -- Duty
-    const uint32_t period_ticks = 1U << 14;
-    uint32_t duty_ticks = (uint64_t)high_us * period_ticks / period_us;
-    if (duty_ticks == 0) {
-      duty_ticks = 1;
-    }
-    if (duty_ticks >= period_ticks) {
-      duty_ticks = period_ticks - 1;
-    }
-
-    ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, duty_ticks));
+    const uint32_t duty = 1U << ledc_timer_cfg.duty_resolution >> 3;
+    ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, duty));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));
     return ESP_OK;
   }
@@ -270,86 +258,35 @@ namespace motor {
       // Target & covered times
       uint32_t total_steps = mv.degrees * STEPS_PER_REVOLUTION * microstep_factor / 360;
       uint64_t total_time_us = mv.degrees * 1000000 / mv.rpm / 6;
+      uint32_t base_time = START_PERIOD_US / microstep_factor;
       ESP_LOGI(TAG, "Totals: steps = %d, time_us = %d", total_steps, total_time_us);
-      // Profile
-      auto &raw_profile = PROFILE_LINEAR;
-      std::vector<float> profile;
-      profile.reserve(raw_profile.size());
-      float scale = raw_profile.front();
-      std::transform(
-        raw_profile.begin(), //
-        raw_profile.end(), //
-        std::back_inserter(profile), //
-        [scale](float x) { return x / scale; }
-      );
-      if (!segments_.capacity()) {
-        segments_.reserve(profile.size());
-      }
-      uint32_t time_segment = total_time_us / profile.size();
-      ESP_LOGI(TAG, "Segment time_us: %d", time_segment);
-      ESP_LOGI(TAG, "Microstep factor: %d", microstep_factor);
-      float S0_f = (float)time_segment * microstep_factor / START_PERIOD_US;
-      // -- 1st segment is configured with "safe to start" period_us equivalent to START_PERIOD_US
-      segments_.clear();
-      segments_.push_back(
-        SegmentData {
-          .steps = static_cast<uint32_t>(std::round(S0_f)),
-          .period_us = START_PERIOD_US / microstep_factor
-        }
-      );
-      if (segments_.back().steps >= total_steps) {
-        segments_.back().steps = total_steps;
-        ESP_LOGW(TAG, "Forced to use a single-segment ramp");
-      } else {
-        float inv_sum = std::accumulate(
-          profile.begin() + 1, //
-          profile.end(), //
-          0, //
-          [](float acc, float x) { return acc + 1 / x; }
-        );
-        float alpha = (S0_f * inv_sum) / (total_steps - S0_f);
-        ESP_LOGI(TAG, "Inverted sum: %f, Alpha: %f", inv_sum, alpha);
-        std::transform(
-          profile.begin() + 1, profile.end(), std::back_inserter(segments_),
-          [microstep_factor, alpha, time_segment](float g_i) {
-            uint32_t T_i = static_cast<uint32_t>(
-              std::round((float)START_PERIOD_US / microstep_factor * g_i * alpha) //
-            );
-            return SegmentData {
-              .steps = time_segment / T_i, //
-              .period_us = T_i
-            };
-          }
-        );
-      }
-      ESP_LOGI(TAG, "Profile:");
-      for (float p : profile) {
-        ESP_LOGI(TAG, "%5.2f", p);
-      }
+
+      MovePlanner planner(base_time, total_time_us, total_steps);
+      if (!planner.isFeasible()) {
+        ESP_LOGE(TAG, "Too tight constraints");
+        return ESP_ERR_INVALID_ARG;
+      };
+      segments_ = planner.generateSegments();
       ESP_LOGI(TAG, "Segments:");
       for (SegmentData s : segments_) {
         ESP_LOGI(TAG, "{ .period_us = %d, .steps = %d }", s.period_us, s.steps);
       }
-
-      // auto current_segment = segments_.front();
-      // // Set initial LEDC
-      // ESP_RETURN_ON_ERROR(
-      //   setupLEDC(
-      //     current_segment.period_us,
-      //     current_segment.period_us / 8 //
-      //   ),
-      //   MotorHal::TAG, //
-      //   "setupLEDC failed"
-      // );
-
-      // // Set PCNT for first segment
-      // ESP_RETURN_ON_ERROR(
-      //   setupPCNT(
-      //     current_segment.steps //
-      //   ),
-      //   MotorHal::TAG, //
-      //   "setupPCNT failed"
-      // );
+      current_segment_index_ = 0;
+      auto current_segment = segments_.at(current_segment_index_);
+      // Set initial LEDC
+      ESP_RETURN_ON_ERROR(
+        setupLEDC(current_segment.period_us),
+        MotorHal::TAG, //
+        "setupLEDC failed"
+      );
+      // Set PCNT for first segment
+      ESP_RETURN_ON_ERROR(
+        setupPCNT(
+          current_segment.steps //
+        ),
+        MotorHal::TAG, //
+        "setupPCNT failed"
+      );
     }
     if (mv.move_type == MoveType::FREE) {
       ESP_RETURN_ON_ERROR(
@@ -357,11 +294,9 @@ namespace motor {
         MotorHal::TAG, //
         "setupStopper failed"
       );
-      // Adjust period based on step_mode: 400us for 1/8, scaled for others
       uint32_t period_us = START_PERIOD_US / microstep_factor;
-      uint32_t high_us = period_us / 8;
       ESP_RETURN_ON_ERROR(
-        setupLEDC(period_us, high_us), //
+        setupLEDC(period_us), //
         MotorHal::TAG, //
         "ledc setup failed"
       );
@@ -405,26 +340,20 @@ namespace motor {
    * @return isDone
    */
   bool MotorHal::nextSegment() {
-    auto finished_segment = segments_.at(current_segment_index_++);
-    if (current_segment_index_ < segments_.size()) {
+    if (current_segment_index_ < (segments_.size() - 1)) {
+      auto finished_segment = segments_.at(current_segment_index_++);
       auto current_segment = segments_.at(current_segment_index_);
-      // Set new period for this segment
-      ledc_set_freq(
-        ledc_mode_, //
-        ledc_timer_, //
-        1000000 / current_segment.period_us //
-      );
-      ledc_set_duty(
-        ledc_mode_, //
-        ledc_channel_, //
-        current_segment.period_us / 8 //
-      );
-      ledc_update_duty(ledc_mode_, ledc_channel_);
-      // Set next watch
+      ledc_timer_pause(ledc_mode_, ledc_timer_);
+      // --
       pcnt_unit_stop(pcnt_);
+      // --
       pcnt_unit_remove_watch_point(pcnt_, finished_segment.steps);
       pcnt_unit_add_watch_point(pcnt_, current_segment.steps);
+      ledc_set_freq(ledc_mode_, ledc_timer_, 1000000 / current_segment.period_us);
+      // --
       pcnt_unit_start(pcnt_);
+      // --
+      ledc_timer_resume(ledc_mode_, ledc_timer_);
       return false;
     }
     return true;

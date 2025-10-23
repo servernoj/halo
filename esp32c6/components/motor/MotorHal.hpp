@@ -8,11 +8,6 @@
 
 namespace motor {
 
-  struct SegmentData {
-      uint32_t steps;
-      uint32_t period_us;
-  };
-
   class MotorHal {
     public:
       esp_err_t init(MotorCfg &hw);
@@ -41,7 +36,7 @@ namespace motor {
       esp_err_t initLEDC();
       esp_err_t initStopperGPIO();
       esp_err_t setupPCNT(int target_steps);
-      esp_err_t setupLEDC(uint32_t period_us, uint32_t high_us);
+      esp_err_t setupLEDC(uint32_t period_us);
       esp_err_t setupStopper();
   };
 
