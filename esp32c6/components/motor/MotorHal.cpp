@@ -6,8 +6,8 @@
 #include <esp_log.h>
 
 #include "MotorHal.hpp"
-#include "MovePlanner.hpp"
 #include "RampedMove.hpp"
+#include "hal/ledc_types.h"
 
 namespace motor {
 
@@ -48,13 +48,15 @@ namespace motor {
 
   esp_err_t MotorHal::init(MotorCfg &motor_cfg) {
     motor_cfg_ = motor_cfg;
-    ESP_RETURN_ON_ERROR(initDriverGPIO(), MotorHal::TAG, "Driver GPIO initialization failed");
-    ESP_RETURN_ON_ERROR(initStopperGPIO(), MotorHal::TAG, "Stopper GPIO initialization failed");
+    ;
+    ESP_RETURN_ON_ERROR(initGPIO(), MotorHal::TAG, "GPIO initialization failed");
+    ESP_RETURN_ON_ERROR(initStopper(), MotorHal::TAG, "Stopper initialization failed");
     ESP_RETURN_ON_ERROR(initPCNT(), MotorHal::TAG, "PCNT initialization failed");
+    ESP_RETURN_ON_ERROR(initLEDC(), MotorHal::TAG, "LEDC initialization failed");
     return ESP_OK;
   }
 
-  esp_err_t MotorHal::initStopperGPIO() {
+  esp_err_t MotorHal::initStopper() {
     // -- GPIO config
     gpio_config_t io = {
       .pin_bit_mask = 1ULL << motor_cfg_.pins.stop,
@@ -92,7 +94,9 @@ namespace motor {
     return ESP_OK;
   }
 
-  esp_err_t MotorHal::initDriverGPIO() {
+  esp_err_t MotorHal::initLEDC() { return ESP_OK; }
+
+  esp_err_t MotorHal::initGPIO() {
 
     motor_pins_t &pins = motor_cfg_.pins;
 
@@ -145,7 +149,7 @@ namespace motor {
   }
 
   esp_err_t MotorHal::setupDirection(int32_t degrees) {
-    uint8_t direction = (degrees >= 0) ? motor_cfg_.dir_cw_level : !motor_cfg_.dir_cw_level;
+    uint8_t direction = (degrees >= 0) ? 1 : 0;
     ESP_RETURN_ON_ERROR(
       gpio_set_level(motor_cfg_.pins.m3, direction), //
       MotorHal::TAG, //
@@ -220,7 +224,8 @@ namespace motor {
     motor_pins_t &pins = motor_cfg_.pins;
     // HOLD in Standby and outputs disabled
     gpio_set_level(pins.stby, 0);
-    gpio_set_level(pins.en, !motor_cfg_.en_active_level);
+    gpio_set_level(pins.en, 0);
+    esp_rom_delay_us(200);
     // Prepare MODE pins (Fixed mode) BEFORE releasing STBY
     const uint8_t stepModeBits = static_cast<uint8_t>(mode);
     gpio_set_level(pins.m0, (stepModeBits >> 0) & 1);
@@ -228,13 +233,11 @@ namespace motor {
     gpio_set_level(pins.m2, (stepModeBits >> 2) & 1);
     gpio_set_level(pins.m3, (stepModeBits >> 3) & 1);
     // Delay before STBY edge
-    esp_rom_delay_us(100);
+    esp_rom_delay_us(200);
     // Release Standby => latches control mode per MODE[3:0]
     gpio_set_level(pins.stby, 1);
     // Delay after STBY edge
-    esp_rom_delay_us(200);
-    // After STBY, MODE3 pin is CW/CCW; now it's safe to set a default dir
-    gpio_set_level(pins.m3, motor_cfg_.dir_cw_level);
+    esp_rom_delay_us(500);
     return ESP_OK;
   }
 
@@ -264,20 +267,7 @@ namespace motor {
     );
 
     if (mv.move_type == MoveType::FIXED) {
-      // Target & covered times
-      // int32_t steps = mv.degrees * STEPS_PER_REVOLUTION * factor / 360;
-      // uint64_t degrees = mv.degrees > 0 ? mv.degrees : -mv.degrees;
-      // int64_t total_time_us = degrees * 1000000 / mv.rpm / 6;
-      // uint32_t base_time = START_PERIOD_US / factor;
-      // ESP_LOGI(TAG, "Totals: steps = %d, time_us = %u", steps, total_time_us);
-      // MovePlanner planner(base_time, total_time_us, steps);
-      // if (!planner.isFeasible()) {
-      //   ESP_LOGE(TAG, "Too tight constraints");
-      //   return ESP_ERR_INVALID_ARG;
-      // };
-      // segments_ = planner.generateSegments();
       segments_ = RampedMove::generateSegments(mv.degrees, factor);
-
       ESP_LOGI(TAG, "Segments: ");
       for (SegmentData s : segments_) {
         ESP_LOGI(TAG, "{ .steps = %d, .period_us = %u }", s.steps, s.period_us);
@@ -313,7 +303,7 @@ namespace motor {
         "ledc setup failed"
       );
     }
-    gpio_set_level(motor_cfg_.pins.en, motor_cfg_.en_active_level);
+    gpio_set_level(motor_cfg_.pins.en, 1);
     return ESP_OK;
   }
 
@@ -321,7 +311,7 @@ namespace motor {
     ESP_RETURN_ON_ERROR(
       gpio_set_level(
         motor_cfg_.pins.en, //
-        doHold ? motor_cfg_.en_active_level : !motor_cfg_.en_active_level
+        uint32_t(doHold)
       ),
       MotorHal::TAG, "gpio_set_level failed"
     );
@@ -332,8 +322,15 @@ namespace motor {
     ESP_ERROR_CHECK(ledc_timer_pause(ledc_mode_, ledc_timer_));
     ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, 0));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));
+    ledc_channel_config_t ledc_chan_cfg = {.deconfigure = true};
+    ESP_RETURN_ON_ERROR(
+      ledc_channel_config(&ledc_chan_cfg), //
+      MotorHal::TAG, //
+      "ledc_channel_deconfig failed"
+    );
+
     if (last_move_.end_action == EndAction::COAST) {
-      ESP_ERROR_CHECK(gpio_set_level(motor_cfg_.pins.en, !motor_cfg_.en_active_level));
+      ESP_ERROR_CHECK(gpio_set_level(motor_cfg_.pins.en, 0));
     }
     if (last_move_.move_type == MoveType::FIXED) {
       ESP_ERROR_CHECK(pcnt_unit_stop(pcnt_));

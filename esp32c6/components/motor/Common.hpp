@@ -36,9 +36,6 @@ namespace motor {
 
   struct MotorCfg {
     public:
-      uint8_t en_active_level; // 0/1
-      StepMode step_mode;
-      uint8_t dir_cw_level; // logic level that means CW on pin_m3
       motor_pins_t pins;
   };
 

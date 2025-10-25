@@ -30,15 +30,15 @@ namespace motor {
       ledc_channel_t ledc_channel_ = LEDC_CHANNEL_0;
       std::vector<SegmentData> segments_;
       uint16_t current_segment_index_ = 0;
-      esp_err_t setupDirection(int32_t steps);
-      esp_err_t setupMode(StepMode mode);
-      esp_err_t initPCNT();
-      esp_err_t initDriverGPIO();
-      esp_err_t initLEDC();
-      esp_err_t initStopperGPIO();
+      esp_err_t setupDirection(int32_t degrees);
       esp_err_t setupPCNT(int target_steps);
       esp_err_t setupLEDC(uint32_t period_us);
       esp_err_t setupStopper();
+      esp_err_t setupMode(StepMode mode);
+      esp_err_t initGPIO();
+      esp_err_t initPCNT();
+      esp_err_t initLEDC();
+      esp_err_t initStopper();
   };
 
 } // namespace motor

@@ -32,9 +32,6 @@ namespace motor {
       return ESP_OK;
     }
     MotorCfg motor_cfg {
-      .en_active_level = 1,
-      .step_mode = StepMode::FixedQuarter,
-      .dir_cw_level = 1,
       .pins = {
         .stby = GPIO_NUM_5,
         .en = GPIO_NUM_4,
@@ -147,7 +144,7 @@ namespace motor {
           break;
         }
       }
-      ESP_LOGW(TAG, "Broke away");
+      ESP_LOGW(TAG, "Done");
       if (hal_->stopMove() != ESP_OK) {
         motor_state_.store(MotorState::ERRORED, std::memory_order_release);
       };

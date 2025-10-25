@@ -2,7 +2,6 @@ idf_component_register(
   SRCS
     "Motor.cpp"
     "MotorHal.cpp"
-    "MovePlanner.cpp"
     "RampedMove.cpp"
   INCLUDE_DIRS
     "."            
