@@ -12,17 +12,41 @@ const BITS = {
 
 export default (rpcRequest, { threshold = 5 }) => {
   const onActive = async () => {
+    const motor = async () => {
+      await rpcRequest({
+        target: 'motor',
+        method: 'release',
+        args: []
+      })
+      await rpcRequest({
+        target: 'tools',
+        method: 'sleep',
+        args: [4_000]
+      })
+      await rpcRequest({
+        target: 'motor',
+        method: 'runProfile',
+        args: [
+          [{ degrees: -90, rpm: 90, delay: 0 }],
+          8
+        ]
+      })
+      await rpcRequest({
+        target: 'motor',
+        method: 'freeRun',
+        args: [-1]
+      })
+    }
+    const delay = async () => {
+      await rpcRequest({
+        target: 'tools',
+        method: 'sleep',
+        args: [Math.random() * 4_000 + 4_000]
+      })
+    }
     console.log('>>>')
-    await rpcRequest({
-      target: 'buzzer',
-      method: 'runProfile',
-      args: [[{ note: 'E6', length: 250 }], false]
-    })
-    await rpcRequest({
-      target: 'tools',
-      method: 'sleep',
-      args: [5_000]
-    })
+    motor()
+    await delay()
     await rpcRequest({
       target: 'relay',
       method: 'on_off',

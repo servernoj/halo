@@ -3,6 +3,7 @@ idf_component_register(
     "Motor.cpp"
     "MotorHal.cpp"
     "MovePlanner.cpp"
+    "RampedMove.cpp"
   INCLUDE_DIRS
     "."            
   REQUIRES

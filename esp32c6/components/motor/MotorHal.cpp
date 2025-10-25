@@ -7,6 +7,7 @@
 
 #include "MotorHal.hpp"
 #include "MovePlanner.hpp"
+#include "RampedMove.hpp"
 
 namespace motor {
 
@@ -110,23 +111,6 @@ namespace motor {
       "gpio_config failed" //
     );
 
-    // HOLD in Standby and outputs disabled
-    gpio_set_level(pins.stby, 0);
-    gpio_set_level(pins.en, !motor_cfg_.en_active_level);
-    // Prepare MODE pins (Fixed mode) BEFORE releasing STBY
-    const uint8_t stepModeBits = static_cast<uint8_t>(motor_cfg_.step_mode);
-    gpio_set_level(pins.m0, (stepModeBits >> 0) & 1);
-    gpio_set_level(pins.m1, (stepModeBits >> 1) & 1);
-    gpio_set_level(pins.m2, (stepModeBits >> 2) & 1);
-    gpio_set_level(pins.m3, (stepModeBits >> 3) & 1);
-    // Delay before STBY edge
-    esp_rom_delay_us(100);
-    // Release Standby => latches control mode per MODE[3:0]
-    gpio_set_level(pins.stby, 1);
-    // Delay after STBY edge
-    esp_rom_delay_us(200);
-    // After STBY, MODE3 pin is CW/CCW; now it's safe to set a default dir
-    gpio_set_level(pins.m3, motor_cfg_.dir_cw_level);
     return ESP_OK;
   }
 
@@ -232,6 +216,28 @@ namespace motor {
     return ESP_OK;
   }
 
+  esp_err_t MotorHal::setupMode(StepMode mode) {
+    motor_pins_t &pins = motor_cfg_.pins;
+    // HOLD in Standby and outputs disabled
+    gpio_set_level(pins.stby, 0);
+    gpio_set_level(pins.en, !motor_cfg_.en_active_level);
+    // Prepare MODE pins (Fixed mode) BEFORE releasing STBY
+    const uint8_t stepModeBits = static_cast<uint8_t>(mode);
+    gpio_set_level(pins.m0, (stepModeBits >> 0) & 1);
+    gpio_set_level(pins.m1, (stepModeBits >> 1) & 1);
+    gpio_set_level(pins.m2, (stepModeBits >> 2) & 1);
+    gpio_set_level(pins.m3, (stepModeBits >> 3) & 1);
+    // Delay before STBY edge
+    esp_rom_delay_us(100);
+    // Release Standby => latches control mode per MODE[3:0]
+    gpio_set_level(pins.stby, 1);
+    // Delay after STBY edge
+    esp_rom_delay_us(200);
+    // After STBY, MODE3 pin is CW/CCW; now it's safe to set a default dir
+    gpio_set_level(pins.m3, motor_cfg_.dir_cw_level);
+    return ESP_OK;
+  }
+
   esp_err_t MotorHal::setupStopper() {
     ESP_RETURN_ON_ERROR(
       gpio_isr_handler_add(motor_cfg_.pins.stop, gpio_stopper_cb, this), //
@@ -248,7 +254,9 @@ namespace motor {
 
   esp_err_t MotorHal::startMove(Move &mv, MotorCmdId) {
     last_move_ = mv;
-    uint16_t microstep_factor = getMicrostepFactor(motor_cfg_.step_mode);
+    StepMode mode = StepMode::FixedFull;
+    setupMode(mode);
+    uint16_t factor = getMicrostepFactor(mode);
     ESP_RETURN_ON_ERROR(
       setupDirection(mv.degrees), //
       MotorHal::TAG, //
@@ -257,22 +265,24 @@ namespace motor {
 
     if (mv.move_type == MoveType::FIXED) {
       // Target & covered times
-      int32_t steps = mv.degrees * STEPS_PER_REVOLUTION * microstep_factor / 360;
-      uint64_t degrees = mv.degrees > 0 ? mv.degrees : -mv.degrees;
-      int64_t total_time_us = degrees * 1000000 / mv.rpm / 6;
-      uint32_t base_time = START_PERIOD_US / microstep_factor;
-      ESP_LOGI(TAG, "Totals: steps = %d, time_us = %u", steps, total_time_us);
+      // int32_t steps = mv.degrees * STEPS_PER_REVOLUTION * factor / 360;
+      // uint64_t degrees = mv.degrees > 0 ? mv.degrees : -mv.degrees;
+      // int64_t total_time_us = degrees * 1000000 / mv.rpm / 6;
+      // uint32_t base_time = START_PERIOD_US / factor;
+      // ESP_LOGI(TAG, "Totals: steps = %d, time_us = %u", steps, total_time_us);
+      // MovePlanner planner(base_time, total_time_us, steps);
+      // if (!planner.isFeasible()) {
+      //   ESP_LOGE(TAG, "Too tight constraints");
+      //   return ESP_ERR_INVALID_ARG;
+      // };
+      // segments_ = planner.generateSegments();
+      segments_ = RampedMove::generateSegments(mv.degrees, factor);
 
-      MovePlanner planner(base_time, total_time_us, steps);
-      if (!planner.isFeasible()) {
-        ESP_LOGE(TAG, "Too tight constraints");
-        return ESP_ERR_INVALID_ARG;
-      };
-      segments_ = planner.generateSegments();
-      // ESP_LOGI(TAG, "Segments:");
-      // for (SegmentData s : segments_) {
-      //   ESP_LOGI(TAG, "{ .period_us = %u, .steps = %d }", s.period_us, s.steps);
-      // }
+      ESP_LOGI(TAG, "Segments: ");
+      for (SegmentData s : segments_) {
+        ESP_LOGI(TAG, "{ .steps = %d, .period_us = %u }", s.steps, s.period_us);
+      }
+
       current_segment_index_ = 0;
       auto current_segment = segments_.at(current_segment_index_);
       // Set initial LEDC
@@ -296,7 +306,7 @@ namespace motor {
         MotorHal::TAG, //
         "setupStopper failed"
       );
-      uint32_t period_us = START_PERIOD_US / microstep_factor;
+      uint32_t period_us = START_PERIOD_US / factor;
       ESP_RETURN_ON_ERROR(
         setupLEDC(period_us), //
         MotorHal::TAG, //

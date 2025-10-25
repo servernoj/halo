@@ -31,6 +31,7 @@ namespace motor {
       std::vector<SegmentData> segments_;
       uint16_t current_segment_index_ = 0;
       esp_err_t setupDirection(int32_t steps);
+      esp_err_t setupMode(StepMode mode);
       esp_err_t initPCNT();
       esp_err_t initDriverGPIO();
       esp_err_t initLEDC();

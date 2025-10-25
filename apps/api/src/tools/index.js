@@ -30,6 +30,13 @@ const messageProcessor = async ({ target, method, args }) => {
       }
       break
     }
+    case 'motor': {
+      const handler = motor?.[method]
+      if (typeof handler === 'function') {
+        await handler(...args)
+      }
+      break
+    }
     case 'relay': {
       const handler = relay?.[method]
       if (typeof handler === 'function') {
