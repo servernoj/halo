@@ -11,29 +11,6 @@
 
 namespace motor {
 
-  uint16_t getMicrostepFactor(StepMode mode) {
-    switch (mode) {
-      case StepMode::FixedFull:
-        return 1;
-      case StepMode::FixedHalf:
-        return 2;
-      case StepMode::FixedQuarter:
-        return 4;
-      case StepMode::FixedEighth:
-        return 8;
-      case StepMode::FixedSixteenth:
-        return 16;
-      case StepMode::FixedThirtySecond:
-        return 32;
-      case StepMode::FixedSixtyFourth:
-        return 64;
-      case StepMode::FixedOneTwentyEighth:
-        return 128;
-      default:
-        return 1;
-    }
-  }
-
   static bool IRAM_ATTR
   pcnt_on_reach_cb(pcnt_unit_handle_t pcnt, const pcnt_watch_event_data_t *ed, void *ctx) {
     MotorHal *self = reinterpret_cast<MotorHal *>(ctx);
@@ -46,8 +23,9 @@ namespace motor {
     self->onStopISR();
   }
 
-  esp_err_t MotorHal::init(MotorCfg &motor_cfg) {
-    motor_cfg_ = motor_cfg;
+  MotorHal::MotorHal(MotorCfg &motorConfig) : motor_cfg_(motorConfig) {};
+
+  esp_err_t MotorHal::init() {
     ESP_RETURN_ON_ERROR(initGPIO(), MotorHal::TAG, "GPIO initialization failed");
     ESP_RETURN_ON_ERROR(initStopper(), MotorHal::TAG, "Stopper initialization failed");
     ESP_RETURN_ON_ERROR(initPCNT(), MotorHal::TAG, "PCNT initialization failed");
@@ -93,7 +71,7 @@ namespace motor {
   }
 
   esp_err_t MotorHal::initGPIO() {
-    motor_pins_t &pins = motor_cfg_.pins;
+    auto &pins = motor_cfg_.pins;
 
     // Configure STBY, EN, M0, M1, M2, M3 as pure outputs
     // M2 will be reconfigured to INPUT_OUTPUT after mode setup
@@ -201,8 +179,6 @@ namespace motor {
       "LEDC timer config failed"
     );
 
-    ESP_LOGI(TAG, "Configured LEDC frequency %u Hz", ledc_get_freq(ledc_mode_, ledc_timer_));
-
     // Configure LEDC channel on M2 (STEP pin)
     ledc_channel_config_t ledc_chan_cfg = {};
     ledc_chan_cfg.gpio_num = motor_cfg_.pins.m2;
@@ -218,7 +194,7 @@ namespace motor {
       "LEDC channel config failed"
     );
 
-    // Set duty cycle to 12.5% (50% would be ideal but 12.5% is safer for step pulses)
+    // Set duty cycle to 12.5%
     const uint32_t duty = 1U << (ledc_timer_cfg.duty_resolution - 3);
     ESP_ERROR_CHECK(ledc_set_duty(ledc_mode_, ledc_channel_, duty));
     ESP_ERROR_CHECK(ledc_update_duty(ledc_mode_, ledc_channel_));
@@ -226,8 +202,8 @@ namespace motor {
     return ESP_OK;
   }
 
-  esp_err_t MotorHal::setupMode(StepMode mode) {
-    motor_pins_t &pins = motor_cfg_.pins;
+  esp_err_t MotorHal::setupMode() {
+    auto &pins = motor_cfg_.pins;
 
     // Reconfigure M2 to pure output mode for mode configuration
     gpio_config_t m2_io = {
@@ -248,7 +224,7 @@ namespace motor {
     esp_rom_delay_us(200);
 
     // Prepare MODE pins (Fixed mode) BEFORE releasing STBY
-    const uint8_t stepModeBits = static_cast<uint8_t>(mode);
+    const uint8_t stepModeBits = static_cast<uint8_t>(motor_cfg_.stepMode.getModeBits());
     gpio_set_level(pins.m0, (stepModeBits >> 0) & 1);
     gpio_set_level(pins.m1, (stepModeBits >> 1) & 1);
     gpio_set_level(pins.m2, (stepModeBits >> 2) & 1);
@@ -286,16 +262,15 @@ namespace motor {
 
   esp_err_t MotorHal::startMove(Move &mv, MotorCmdId) {
     last_move_ = mv;
-    StepMode mode = StepMode::FixedFull;
 
     // 1. Setup step mode (configures M3:M0 and STBY sequence)
     ESP_RETURN_ON_ERROR(
-      setupMode(mode), //
+      setupMode(), //
       MotorHal::TAG, //
       "setupMode failed"
     );
 
-    uint16_t factor = getMicrostepFactor(mode);
+    uint16_t factor = motor_cfg_.stepMode.getFactor();
 
     // 2. Setup direction (M3 is now used as DIR after mode is latched)
     ESP_RETURN_ON_ERROR(
@@ -307,10 +282,10 @@ namespace motor {
     if (mv.move_type == MoveType::FIXED) {
       // Generate motion profile segments
       segments_ = RampedMove::generateSegments(mv.degrees, factor);
-      ESP_LOGI(TAG, "Segments: ");
-      for (SegmentData s : segments_) {
-        ESP_LOGI(TAG, "{ .steps = %d, .period_us = %u }", s.steps, s.period_us);
-      }
+      // ESP_LOGI(TAG, "Segments: ");
+      // for (SegmentData s : segments_) {
+      //   ESP_LOGI(TAG, "{ .steps = %d, .period_us = %u }", s.steps, s.period_us);
+      // }
 
       current_segment_index_ = 0;
       auto current_segment = segments_.at(current_segment_index_);
@@ -339,9 +314,8 @@ namespace motor {
       );
 
       // Setup LEDC with initial period
-      uint32_t period_us = START_PERIOD_US / factor;
       ESP_RETURN_ON_ERROR(
-        setupLEDC(period_us), //
+        setupLEDC(BASE_PERIOD_US), //
         MotorHal::TAG, //
         "setupLEDC failed"
       );

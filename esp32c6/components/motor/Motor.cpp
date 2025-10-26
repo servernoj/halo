@@ -24,14 +24,16 @@ namespace motor {
     return NULL;
   };
 
-  MotorState Motor::getState() { return motor_state_.load(std::memory_order_acquire); }
+  void Motor::setStepFactor(uint16_t factor) { motor_config_.stepMode.setFactor(factor); }
+  uint16_t Motor::getStepFactor() { return motor_config_.stepMode.getFactor(); }
 
   esp_err_t Motor::init() {
     if (initialized_) {
       ESP_LOGW(TAG, "Already initialized");
       return ESP_OK;
     }
-    MotorCfg motor_cfg {
+    motor_config_ = MotorCfg {
+      .stepMode = StepMode(StepMode::ModeBits::FixedFull),
       .pins = {
         .stby = GPIO_NUM_5,
         .en = GPIO_NUM_4,
@@ -49,9 +51,10 @@ namespace motor {
       }
     }
     if (!hal_) {
-      hal_ = std::make_unique<MotorHal>();
+      hal_ = std::make_unique<MotorHal>(motor_config_);
     }
-    ESP_RETURN_ON_ERROR(hal_->init(motor_cfg), Motor::TAG, "hw init failed");
+
+    ESP_RETURN_ON_ERROR(hal_->init(), Motor::TAG, "MotorHal::init failed");
 
     if (!task_) {
       xTaskCreate(Motor::taskTrampoline, "motor_task", 4096, this, 7, &task_);

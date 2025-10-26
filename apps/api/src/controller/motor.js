@@ -5,6 +5,28 @@ import z from 'zod'
 
 const router = express.Router()
 
+router.get('/config',
+  async (req, res) => {
+    const config = await tools.motor.getConfig()
+    res.json(config)
+  }
+)
+
+router.post('/config',
+  validator({
+    body: z.object({
+      factor: z.number().refine(x => [1, 2, 4, 8, 16, 32, 64, 128].includes(x), {
+        message: 'Must be a power of 2, ranged from 1 to 128 inclusive'
+      })
+    })
+  }),
+  async (req, res) => {
+    const { factor } = res.locals.parsed.body
+    await tools.motor.config(factor)
+    res.sendStatus(200)
+  }
+)
+
 router.post(
   '/profile',
   validator({

@@ -13,7 +13,7 @@ namespace motor {
 
   class RampedMove {
     public:
-      static constexpr uint32_t stepsPerSegment = 10;
+      static constexpr uint32_t stepsPerSegment = 20;
       static std::vector<SegmentData> generateSegments(int32_t degrees, uint32_t factor);
 
     private:

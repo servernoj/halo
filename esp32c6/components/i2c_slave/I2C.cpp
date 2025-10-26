@@ -131,6 +131,12 @@ namespace i2c_slave {
                   ota::OTA::instance().reset_status();
                   break;
                 }
+                case I2C::REG_MOTOR_CONFIG: {
+                  auto factor = *(uint16_t *)(evt.data->buffer + 1);
+                  ESP_LOGI(TAG, "Set motor config: { .factor = %u }", factor);
+                  Motor::instance().setStepFactor(factor);
+                  break;
+                }
                 case I2C::REG_MOTOR_RESET: {
                   // Write: Stop motor
                   ESP_LOGI(TAG, "Motor task queue reset");
@@ -202,8 +208,8 @@ namespace i2c_slave {
                 case I2C::REG_MOTOR_PROFILE: {
                   // Write: Motor profile (array of {int16 steps, uint16 delay})
                   size_t dataLength = evt.data->length - 1;
-                  if (dataLength % 6 == 0 && dataLength <= 60) {
-                    int N = dataLength / 6;
+                  if (dataLength % 4 == 0 && dataLength <= 60) {
+                    int N = dataLength / 4;
                     uint16_t *offset = (uint16_t *)(evt.data->buffer + 1);
                     ESP_LOGI(TAG, "Motor profile: %d moves", N);
                     for (int i = 0; i < N; i++) {
@@ -284,9 +290,10 @@ namespace i2c_slave {
                 memcpy(dataBuffer, &status, dataLength);
                 break;
               }
-              case I2C::REG_MOTOR_STATE: {
-                dataLength = 1;
-                dataBuffer[0] = static_cast<uint8_t>(Motor::instance().getState());
+              case I2C::REG_MOTOR_CONFIG: {
+                dataLength = 2;
+                uint32_t factor = Motor::instance().getStepFactor();
+                memcpy(dataBuffer, &factor, dataLength);
                 break;
               }
               case REG_FIRMWARE_INFO: {

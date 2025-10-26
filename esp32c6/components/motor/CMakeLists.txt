@@ -1,5 +1,6 @@
 idf_component_register(
   SRCS
+    "StepMode.cpp"
     "Motor.cpp"
     "MotorHal.cpp"
     "RampedMove.cpp"

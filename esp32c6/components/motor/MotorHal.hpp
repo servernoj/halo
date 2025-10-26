@@ -10,17 +10,18 @@ namespace motor {
 
   class MotorHal {
     public:
-      esp_err_t init(MotorCfg &hw);
+      esp_err_t init();
       esp_err_t startMove(Move &mv, MotorCmdId id);
       esp_err_t stopMove();
       bool nextSegment();
       esp_err_t holdOrRelease(bool doHold);
       void registerTaskHandle(TaskHandle_t h) { task_ = h; }
       void onStopISR();
+      MotorHal(MotorCfg &);
 
     private:
       static constexpr const char *TAG = "MotorHal";
-      MotorCfg motor_cfg_ {};
+      MotorCfg &motor_cfg_;
       Move last_move_;
       TaskHandle_t task_ = nullptr;
       pcnt_unit_handle_t pcnt_unit_ = nullptr;
@@ -35,7 +36,7 @@ namespace motor {
       esp_err_t setupPCNT(int target_steps);
       esp_err_t setupLEDC(uint32_t period_us);
       esp_err_t setupStopper();
-      esp_err_t setupMode(StepMode mode);
+      esp_err_t setupMode();
       esp_err_t initGPIO();
       esp_err_t initPCNT();
       esp_err_t initStopper();

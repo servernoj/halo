@@ -1,12 +1,12 @@
-import { writeRegister } from './i2c-util.js'
+import { readRegister, writeRegister } from './i2c-util.js'
 import { sleep } from './index.js'
 
 /**
  * @param {Array<{degrees: number, delay: number}>} profile A sequence of motor steps to run in FIXED + COAST mode
- * @param {number} repeat Number of times the profile needs to be repeated, defaults to 1
+ * @param {number} repeat Number of times the profile needs to be repeated, defaults to 1 
  */
-export const runProfile = async (profile = [], repeat) => {
-  // Each move is 4 bytes (int16 + uint16)
+export const runProfile = async (profile = [], repeat = 1) => {
+  // Each move is bytes (int16 + uint16)
   // Max 15 moves per I2C write (60 bytes)
   const MAX_MOVES_PER_WRITE = 15
   const profile_ = Array(repeat).fill(profile).reduce(
@@ -22,6 +22,22 @@ export const runProfile = async (profile = [], repeat) => {
     })
     await writeRegister(0x23, buffer)
     await sleep(2000)
+  }
+}
+
+/**
+ * @param {number} factor Microstepping factor, 1,2,4,..., 128} factor 
+ */
+export const config = async (factor = 1) => {
+  const buffer = Buffer.alloc(2)
+  buffer.writeUInt16LE(factor)
+  await writeRegister(0x20, buffer)
+}
+
+export const getConfig = async () => {
+  const buffer = await readRegister(0x20)
+  return {
+    factor: buffer.readUInt16LE()
   }
 }
 

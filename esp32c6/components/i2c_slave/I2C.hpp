@@ -35,7 +35,7 @@ namespace i2c_slave {
       static constexpr uint8_t REG_OTA_RESET_STATUS = 0x13;
 
       // Motor Registers (0x20 - 0x2F)
-      static constexpr uint8_t REG_MOTOR_STATE = 0x20;
+      static constexpr uint8_t REG_MOTOR_CONFIG = 0x20;
       static constexpr uint8_t REG_MOTOR_STOP = 0x21;
       static constexpr uint8_t REG_MOTOR_FREE_RUN = 0x22;
       static constexpr uint8_t REG_MOTOR_PROFILE = 0x23;

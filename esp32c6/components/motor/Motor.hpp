@@ -11,7 +11,6 @@ namespace motor {
       Move mv;
       MotorCmdId id;
   };
-  const char *moveTypeToName(MoveType move);
 
   class Motor {
     public:
@@ -22,7 +21,8 @@ namespace motor {
       esp_err_t init();
       esp_err_t submit(const Move &mv);
       esp_err_t resetQueue();
-      MotorState getState();
+      void setStepFactor(uint16_t factor);
+      uint16_t getStepFactor();
 
     private:
       static void taskTrampoline(void *arg);
@@ -32,6 +32,7 @@ namespace motor {
       std::atomic<MotorState> motor_state_ {MotorState::IDLE};
       void taskLoop();
       std::unique_ptr<MotorHal> hal_;
+      MotorCfg motor_config_;
       QueueHandle_t cmd_q_ = nullptr;
       QueueHandle_t done_q_ = nullptr;
       TaskHandle_t task_ = nullptr;
