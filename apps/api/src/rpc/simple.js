@@ -27,8 +27,11 @@ export default (rpcRequest, { threshold = 5 }) => {
         target: 'motor',
         method: 'runProfile',
         args: [
-          [{ degrees: -90, rpm: 90, delay: 0 }],
-          8
+          [
+            { degrees: 90, delay: 0 },
+            { degrees: -90, delay: 0 }
+          ],
+          4
         ]
       })
       await rpcRequest({

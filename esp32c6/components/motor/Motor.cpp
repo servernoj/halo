@@ -80,9 +80,6 @@ namespace motor {
     if (!cmd_q_) {
       return ESP_ERR_INVALID_STATE;
     }
-    if (mv.rpm <= 0) {
-      return ESP_ERR_INVALID_ARG;
-    }
 
     if (mv.move_type == MoveType::STOP) {
       xQueueReset(cmd_q_);
@@ -101,7 +98,6 @@ namespace motor {
       submit(
         Move {
           .degrees = -dir * 180,
-          .rpm = 120,
           .end_action = EndAction::HOLD,
           .move_type = MoveType::FIXED,
         }

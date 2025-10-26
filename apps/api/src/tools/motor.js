@@ -2,24 +2,23 @@ import { writeRegister } from './i2c-util.js'
 import { sleep } from './index.js'
 
 /**
- * @param {Array<{degrees: number, rpm: number, delay: number}>} profile A sequence of motor steps to run in FIXED + COAST mode
+ * @param {Array<{degrees: number, delay: number}>} profile A sequence of motor steps to run in FIXED + COAST mode
  * @param {number} repeat Number of times the profile needs to be repeated, defaults to 1
  */
 export const runProfile = async (profile = [], repeat) => {
-  // Each move is 6 bytes (int16 + uint16 +)
-  // Max 9 moves per I2C write (54 bytes)
-  const MAX_MOVES_PER_WRITE = 9
+  // Each move is 4 bytes (int16 + uint16)
+  // Max 15 moves per I2C write (60 bytes)
+  const MAX_MOVES_PER_WRITE = 15
   const profile_ = Array(repeat).fill(profile).reduce(
     (acc, p) => [...acc, ...p],
     []
   ).slice(0, 16)
   for (let i = 0; i < profile_.length; i += MAX_MOVES_PER_WRITE) {
     const chunk = profile_.slice(i, i + MAX_MOVES_PER_WRITE)
-    const buffer = Buffer.alloc(chunk.length * 6)
+    const buffer = Buffer.alloc(chunk.length * 4)
     chunk.forEach((move, idx) => {
-      buffer.writeInt16LE(move.degrees, idx * 6)
-      buffer.writeUInt16LE(move.delay, idx * 6 + 2)
-      buffer.writeUInt16LE(move.rpm, idx * 6 + 4)
+      buffer.writeInt16LE(move.degrees, idx * 4)
+      buffer.writeUInt16LE(move.delay, idx * 4 + 2)
     })
     await writeRegister(0x23, buffer)
     await sleep(2000)

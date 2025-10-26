@@ -14,7 +14,6 @@ router.post(
         z.object({
           degrees: z.number().int(),
           delay: z.number().nonnegative().default(0),
-          rpm: z.number().int().nonnegative().min(60)
         })
       )
     })

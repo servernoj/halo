@@ -23,7 +23,8 @@ namespace motor {
       MotorCfg motor_cfg_ {};
       Move last_move_;
       TaskHandle_t task_ = nullptr;
-      pcnt_unit_handle_t pcnt_ = nullptr;
+      pcnt_unit_handle_t pcnt_unit_ = nullptr;
+      pcnt_channel_handle_t pcnt_channel_ = nullptr;
       gpio_glitch_filter_handle_t stopper_filter_ = nullptr;
       ledc_mode_t ledc_mode_ = LEDC_LOW_SPEED_MODE;
       ledc_timer_t ledc_timer_ = LEDC_TIMER_0;
@@ -37,7 +38,6 @@ namespace motor {
       esp_err_t setupMode(StepMode mode);
       esp_err_t initGPIO();
       esp_err_t initPCNT();
-      esp_err_t initLEDC();
       esp_err_t initStopper();
   };
 
