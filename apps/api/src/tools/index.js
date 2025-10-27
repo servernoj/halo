@@ -33,7 +33,8 @@ const messageProcessor = async ({ target, method, args }) => {
     case 'motor': {
       const handler = motor?.[method]
       if (typeof handler === 'function') {
-        await handler(...args)
+        const result = await handler(...args)
+        return result
       }
       break
     }
