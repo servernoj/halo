@@ -34,6 +34,7 @@ if (!isMainThread) {
       const { interval, options } = result
       if (interval > 0) {
         console.log(`Polling interval set to ${interval} ms`)
+        console.log('Options', options)
         timer = taskLoop(interval, options)
       } else {
         console.log('Polling stopped')

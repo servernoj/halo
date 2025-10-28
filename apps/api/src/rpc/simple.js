@@ -10,7 +10,11 @@ const BITS = {
   CLEAR: 0x0E
 }
 
-export default (rpcRequest, { threshold = 5 }) => {
+export default (rpcRequest, {
+  threshold = 5,
+  isEnabled = false,
+  demoIntervalSec = 0
+}) => {
   const onActive = async () => {
     const motor = async () => {
       await rpcRequest({
@@ -51,7 +55,6 @@ export default (rpcRequest, { threshold = 5 }) => {
         ]
       })
     }
-    console.log('>>>')
     motor()
     await delay()
     await rpcRequest({
@@ -71,13 +74,11 @@ export default (rpcRequest, { threshold = 5 }) => {
       method: 'getConfig',
       args: []
     })
-    if (factor != 1) {
-      await rpcRequest({
-        target: 'motor',
-        method: 'config',
-        args: [1]
-      })
-    }
+    await rpcRequest({
+      target: 'motor',
+      method: 'config',
+      args: [1]
+    })
     await rpcRequest({
       target: 'motor',
       method: 'release',
@@ -93,24 +94,27 @@ export default (rpcRequest, { threshold = 5 }) => {
       method: 'runProfile',
       args: [
         [
-          { degrees: +120, delay: 0 },
-          { degrees: -120, delay: 0 }
+          { degrees: +90, delay: 0 },
+          { degrees: -90, delay: 0 }
         ],
         4
       ]
     })
     await rpcRequest({
       target: 'motor',
+      method: 'config',
+      args: [4]
+    })
+    await rpcRequest({
+      target: 'motor',
       method: 'freeRun',
       args: [-1]
     })
-    if (factor != 1) {
-      await rpcRequest({
-        target: 'motor',
-        method: 'config',
-        args: [factor]
-      })
-    }
+    await rpcRequest({
+      target: 'motor',
+      method: 'config',
+      args: [factor]
+    })
   }
   const readByte = async (reg) => {
     const result = await rpcRequest({
@@ -145,7 +149,7 @@ export default (rpcRequest, { threshold = 5 }) => {
       return
     }
     const idleTime = Date.now() - lastActivityTs
-    if (idleTime > 5 * 60 * 1000) {
+    if (demoIntervalSec && idleTime > demoIntervalSec * 1000) {
       isActive = true
       onIdleForTooLong().then(
         () => {
@@ -163,8 +167,9 @@ export default (rpcRequest, { threshold = 5 }) => {
     }
     if (!isDet && isDetPrev) {
       // -- falling edge on isDet
-      if (cnt > threshold) {
+      if (isEnabled && cnt > threshold) {
         isActive = true
+        console.log('>>>')
         onActive().then(
           () => {
             isActive = false
